@@ -27,30 +27,31 @@ OmniLink 是一个面向个人知识管理的跨平台桌面应用，核心解�
 |------|------|
 | 桌面框架 | Tauri v2 (Rust) |
 | 前端 | Vue 3 + TypeScript + Vite |
-| 后端服务 | Node.js Sidecar (Fastify) |
-| 存储 | SQLite（MVP）→ MongoDB（后续） |
-| 内容解析 | Cheerio + @mozilla/readability |
-| AI | OpenAI SDK + Ollama（Provider 抽象） |
+| 后端 | Rust（Tauri 进程内，IPC 通信） |
+| 存储 | SQLite（rusqlite, WAL 模式） |
+| 内容解析 | readability + scraper（Rust） |
+| HTTP 客户端 | reqwest（rustls-tls） |
+| AI | reqwest 调用 OpenAI/Ollama API + 规则引擎降级 |
 
 ## 架构设计
 
 ```
 ┌─────────────────────────────────────────────┐
-│                 Tauri Shell                  │
-│  ┌──────────┐  ┌──────────────────────────┐ │
-│  │  Vue UI   │  │   Sidecar Server (Node)  │ │
-│  │ (前端界面) │◄─►│  - REST API              │ │
-│  └──────────┘  │  - 内容解析引擎            │ │
-│                │  - AI 集成层               │ │
-│                │  - 定时任务调度             │ │
-│                └──────────┬───────────────┘ │
-│                           │                  │
-│                    ┌──────┴──────┐           │
-│                    ▼             ▼           │
-│              ┌──────────┐  ┌─────────┐      │
-│              │  SQLite  │  │ WebDAV  │      │
-│              │(主存储MVP)│  │ (备份)   │      │
-│              └──────────┘  └─────────┘      │
+│               Tauri v2 Application          │
+│  ┌──────────┐  IPC   ┌───────────────────┐ │
+│  │  Vue UI   │◄──────►│  Rust Backend     │ │
+│  │ (前端界面) │invoke()│  - Tauri Commands │ │
+│  └──────────┘        │  - 内容解析引擎    │ │
+│                      │  - AI 集成层       │ │
+│                      │  - 定时任务调度     │ │
+│                      └──────┬────────────┘ │
+│                             │               │
+│                      ┌──────┴──────┐        │
+│                      ▼             ▼        │
+│                ┌──────────┐  ┌─────────┐    │
+│                │  SQLite  │  │ WebDAV  │    │
+│                │(主存储MVP)│  │ (备份)   │    │
+│                └──────────┘  └─────────┘    │
 └─────────────────────────────────────────────┘
          ▲           ▲           ▲
          │           │           │
@@ -58,8 +59,9 @@ OmniLink 是一个面向个人知识管理的跨平台桌面应用，核心解�
 ```
 
 **关键决策**：
-- Sidecar（Node.js）处理所有业务逻辑，Vue UI 通过 REST API 通信
-- MVP 阶段使用 SQLite 作为唯一存储，降低部署复杂度
+- Rust 后端直接运行在 Tauri 进程内，前端通过 IPC `invoke()` 调用 Tauri Commands
+- 无需额外进程（无 Sidecar），减少部署复杂度和进程间通信开销
+- MVP 阶段使用 SQLite 作为唯一存储（rusqlite bundled）
 - 后续迭代引入 MongoDB 用于结构化内容和灵活查询
 - WebDAV 用于数据备份和恢复
 
@@ -77,12 +79,12 @@ OmniLink 是一个面向个人知识管理的跨平台桌面应用，核心解�
 
 ## 内容解析
 
-解析流水线：`链接 → 平台识别 → 内容抓取 → 正文提取（Readability） → 结构化输出 → AI 增强 → 存储`
+解析流水线：`链接 → 平台识别 → 内容抓取（reqwest） → 正文提取（readability + scraper） → 结构化输出 → AI 增强 → 存储`
 
 | 内容类型 | 抓取方式 | 示例 |
 |----------|---------|------|
-| 通用网页 | Cheerio + Readability | 博客、新闻 |
-| SPA/动态页面 | Puppeteer | 知乎、掘金 |
+| 通用网页 | readability + scraper（Rust） | 博客、新闻 |
+| SPA/动态页面 | 后续支持（WebView 渲染） | 知乎、掘金 |
 | 视频平台 | 平台 API + 字幕提取 | YouTube、B站 |
 | 社交媒体 | 平台 API / 爬取 | Twitter/X、微博 |
 | 文档文件 | 文件解析器 | PDF、Markdown |
@@ -131,13 +133,13 @@ AI 功能及优先级：
 ## 迭代计划
 
 ### v0.1 MVP — 核心采集 + 解析（当前）
-- [x] 项目初始化（Tauri + Vue + Sidecar）
-- [ ] 手动输入链接 + 批量添加
-- [ ] 通用网页内容抓取与解析（Cheerio + Readability）
-- [ ] AI 摘要 + 标签（Provider 抽象，支持云端/本地/离线）
+- [x] 项目初始化（Tauri v2 + Vue 3 + Rust 后端）
+- [x] 手动输入链接 + 批量添加
+- [x] 通用网页内容抓取与解析（readability + scraper）
+- [x] AI 摘要 + 标签（Provider 抽象，支持云端/本地/离线）
+- [x] SQLite 存储全部数据（rusqlite, WAL 模式）
+- [x] Vue 基础 UI（链接列表、内容详情、设置页）
 - [ ] 基础分类与标签管理
-- [ ] SQLite 存储全部数据
-- [ ] Vue 基础 UI（链接列表、内容详情、设置页）
 
 ### v0.2 — 扩展采集
 - [ ] 浏览器扩展（Chrome）
@@ -160,15 +162,11 @@ AI 功能及优先级：
 ## 开发
 
 ```bash
-# 安装依赖
+# 安装前端依赖
 npm install
-cd server && npm install
 
-# 开发模式（Vite + Sidecar 并发启动）
+# 开发模式（Vite + Rust 后端热重载）
 npm run tauri dev
-
-# 仅启动 Sidecar
-cd server && npm run dev
 
 # 构建
 npm run tauri build
