@@ -1,0 +1,101 @@
+<template>
+  <div class="links-view">
+    <div class="page-header">
+      <h2>我的链接</h2>
+      <button class="btn-primary" @click="showDialog = true">+ 添加链接</button>
+    </div>
+
+    <div class="filters">
+      <button v-for="f in filters" :key="f.value"
+        :class="['filter-btn', { active: activeFilter === f.value }]"
+        @click="setFilter(f.value)">
+        {{ f.label }}
+      </button>
+    </div>
+
+    <div v-if="loading" class="empty-state">加载中...</div>
+    <div v-else-if="links.length === 0" class="empty-state">还没有链接，点击上方按钮添加</div>
+    <div v-else class="link-list">
+      <LinkCard
+        v-for="link in links"
+        :key="link.id"
+        :link="link"
+        @click="goToDetail(link.id)"
+        @delete="handleDelete"
+      />
+    </div>
+
+    <AddLinkDialog
+      :visible="showDialog"
+      @close="showDialog = false"
+      @submit="handleAddLinks"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useLinksStore } from '../stores/links';
+import { useApi } from '../composables/useApi';
+import LinkCard from '../components/LinkCard.vue';
+import AddLinkDialog from '../components/AddLinkDialog.vue';
+
+const router = useRouter();
+const store = useLinksStore();
+const api = useApi();
+const showDialog = ref(false);
+const activeFilter = ref<string>('');
+const { links, loading } = store;
+
+const filters = [
+  { label: '全部', value: '' },
+  { label: '待解析', value: 'pending' },
+  { label: '已解析', value: 'parsed' },
+  { label: '失败', value: 'failed' },
+];
+
+onMounted(() => store.fetchLinks());
+
+async function setFilter(status: string) {
+  activeFilter.value = status;
+  if (status) {
+    const res = await api.getLinks({ status });
+    store.links = res.links;
+    store.total = res.total;
+  } else {
+    await store.fetchLinks();
+  }
+}
+
+function goToDetail(id: number) {
+  router.push({ name: 'content', params: { id } });
+}
+
+async function handleAddLinks(urls: string[]) {
+  await api.addLinks(urls);
+  await store.fetchLinks();
+}
+
+async function handleDelete(id: number) {
+  await store.removeLink(id);
+}
+</script>
+
+<style scoped>
+.links-view { max-width: 800px; }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.page-header h2 { font-size: 22px; }
+.btn-primary {
+  padding: 8px 16px; background: #6366f1; color: white;
+  border: none; border-radius: 8px; font-size: 14px; cursor: pointer;
+}
+.filters { display: flex; gap: 8px; margin-bottom: 16px; }
+.filter-btn {
+  padding: 6px 14px; border: 1px solid #e2e8f0; background: white;
+  border-radius: 6px; font-size: 13px; cursor: pointer; color: #64748b;
+}
+.filter-btn.active { background: #6366f1; color: white; border-color: #6366f1; }
+.link-list { display: flex; flex-direction: column; gap: 12px; }
+.empty-state { text-align: center; color: #94a3b8; padding: 40px; }
+</style>

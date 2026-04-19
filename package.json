@@ -1,0 +1,27 @@
+{
+  "name": "omni-link",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@vueuse/core": "^14.2.1",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.0",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/cli": "^2",
+    "@vitejs/plugin-vue": "^5.2.0",
+    "concurrently": "^9.2.1",
+    "typescript": "~5.7.0",
+    "vite": "^6.0.0",
+    "vue-tsc": "^2.2.0"
+  }
+}
