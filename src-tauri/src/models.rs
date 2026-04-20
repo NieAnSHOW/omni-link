@@ -10,6 +10,7 @@ pub struct Link {
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
+    pub category_id: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -60,6 +61,7 @@ pub struct LinkDetail {
     pub link: Link,
     pub content: Option<ContentParsed>,
     pub ai: Option<AiResultParsed>,
+    pub tags: Option<Vec<TagWithCount>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -75,4 +77,52 @@ pub struct CreateLinkInput {
     pub title: Option<String>,
     #[allow(dead_code)]
     pub source: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Tag {
+    pub id: i64,
+    pub name: String,
+    pub color: String,
+    pub tag_type: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TagWithCount {
+    pub id: i64,
+    pub name: String,
+    pub color: String,
+    pub tag_type: String,
+    pub content_count: i64,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Category {
+    pub id: i64,
+    pub name: String,
+    pub parent_id: Option<i64>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CategoryNode {
+    pub id: i64,
+    pub name: String,
+    pub parent_id: Option<i64>,
+    pub children: Vec<CategoryNode>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateTagInput {
+    pub name: String,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertCategoryInput {
+    pub id: Option<i64>,
+    pub name: String,
+    pub parent_id: Option<i64>,
 }

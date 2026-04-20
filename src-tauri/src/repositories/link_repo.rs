@@ -92,5 +92,26 @@ fn row_to_link(row: &rusqlite::Row) -> rusqlite::Result<Link> {
         status: row.get("status")?,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
+        category_id: row.get("category_id")?,
     })
+}
+
+pub fn update_link_category(conn: &Connection, id: i64, category_id: Option<i64>) -> AppResult<()> {
+    conn.execute(
+        "UPDATE links SET category_id = ?, updated_at = datetime('now') WHERE id = ?",
+        params![category_id, id],
+    )?;
+    Ok(())
+}
+
+pub fn get_links_by_category(conn: &Connection, category_id: i64, limit: i64, offset: i64) -> AppResult<Vec<Link>> {
+    let mut links = Vec::new();
+    let mut stmt = conn.prepare(
+        "SELECT * FROM links WHERE category_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+    )?;
+    let rows = stmt.query_map(params![category_id, limit, offset], |row| row_to_link(row))?;
+    for row in rows {
+        links.push(row?);
+    }
+    Ok(links)
 }

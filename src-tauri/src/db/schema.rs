@@ -11,6 +11,7 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
             platform TEXT,
             source TEXT DEFAULT 'manual',
             status TEXT DEFAULT 'pending' CHECK(status IN ('pending','parsing','parsed','failed')),
+            category_id INTEGER,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
         );
@@ -71,7 +72,8 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
         CREATE INDEX IF NOT EXISTS idx_links_status ON links(status);
         CREATE INDEX IF NOT EXISTS idx_links_platform ON links(platform);
         CREATE INDEX IF NOT EXISTS idx_links_created ON links(created_at);
-        CREATE INDEX IF NOT EXISTS idx_contents_link ON contents(link_id);",
+        CREATE INDEX IF NOT EXISTS idx_contents_link ON contents(link_id);
+        CREATE INDEX IF NOT EXISTS idx_links_category ON links(category_id);",
     )?;
     Ok(())
 }

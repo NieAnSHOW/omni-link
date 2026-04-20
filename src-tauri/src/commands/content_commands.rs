@@ -49,7 +49,7 @@ pub async fn get_link_detail(state: State<'_, DbState>, id: i64) -> AppResult<Li
             })
     });
 
-    Ok(LinkDetail { link, content, ai })
+    Ok(LinkDetail { link, content, ai, tags: None })
 }
 
 #[tauri::command]
