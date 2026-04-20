@@ -37,9 +37,11 @@
       body_html: article.content || '',
       raw_html: rawHtml,
       metadata: metadata,
-      images: Array.from(document.querySelectorAll('img')).map(function(img) {
-        return img.getAttribute('src') || '';
-      }).filter(function(src) { return src.length > 0; })
+      images: Array.from(new Set(
+        Array.from(document.querySelectorAll('img')).map(function(img) {
+          return img.getAttribute('src') || '';
+        }).filter(function(src) { return src.length > 0; })
+      ))
     });
   } catch (e) {
     window.__TAURI__.event.emit('extract-result', {
