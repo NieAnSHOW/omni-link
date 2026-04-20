@@ -56,10 +56,13 @@ pub fn update_content(
     body_text: Option<&str>,
     body_html: Option<&str>,
 ) -> AppResult<()> {
-    conn.execute(
+    let rows = conn.execute(
         "UPDATE contents SET title = ?, body_text = ?, body_html = ?, updated_at = datetime('now') WHERE id = ?",
         params![title, body_text, body_html, id],
     )?;
+    if rows == 0 {
+        return Err(crate::error::AppError::NotFound(format!("Content id {} not found", id)));
+    }
     Ok(())
 }
 
