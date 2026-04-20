@@ -1,10 +1,12 @@
 (function() {
+  var EVENT_NAME = window.__EXTRACT_EVENT_NAME__ || 'extract-result';
+
   try {
     var reader = new Readability(document.cloneNode(true));
     var article = reader.parse();
 
     if (!article || (!article.title && (!article.textContent || article.textContent.trim().length === 0))) {
-      window.__TAURI__.event.emit('extract-result', {
+      window.__TAURI__.event.emit(EVENT_NAME, {
         success: false,
         error: 'Readability failed to extract content'
       });
@@ -30,7 +32,7 @@
 
     var rawHtml = document.documentElement.outerHTML;
 
-    window.__TAURI__.event.emit('extract-result', {
+    window.__TAURI__.event.emit(EVENT_NAME, {
       success: true,
       title: article.title || '',
       markdown: markdown,
@@ -44,7 +46,7 @@
       ))
     });
   } catch (e) {
-    window.__TAURI__.event.emit('extract-result', {
+    window.__TAURI__.event.emit(EVENT_NAME, {
       success: false,
       error: e.message || 'Unknown extraction error'
     });
