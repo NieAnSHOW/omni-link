@@ -13,7 +13,9 @@
       </button>
     </div>
 
-    <div v-if="loading" class="empty-state">加载中...</div>
+    <div v-if="loading" class="link-list">
+      <LinkCardSkeleton v-for="i in 5" :key="i" />
+    </div>
     <div v-else-if="links.length === 0" class="empty-state">还没有链接，点击上方按钮添加</div>
     <div v-else class="link-list">
       <LinkCard
@@ -34,30 +36,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { storeToRefs } from 'pinia';
 import { useLinksStore } from '../stores/links';
 import { useApi } from '../composables/useApi';
+import { useToast } from '../composables/useToast';
 import LinkCard from '../components/LinkCard.vue';
+import LinkCardSkeleton from '../components/LinkCardSkeleton.vue';
 import AddLinkDialog from '../components/AddLinkDialog.vue';
 
 const router = useRouter();
 const store = useLinksStore();
+const { links, loading } = storeToRefs(store);
 const api = useApi();
+const toast = useToast();
 const showDialog = ref(false);
 const activeFilter = ref<string>('');
 const route = useRoute();
-
-watch(() => route.query.category, (catId) => {
-  if (catId) {
-    activeFilter.value = '';
-    api.getLinks({ status: undefined }).then(res => {
-      store.links = res.links;
-      store.total = res.total;
-    });
-  }
-}, { immediate: true });
-const { links, loading } = store;
 
 const filters = [
   { label: '全部', value: '' },
@@ -66,17 +62,39 @@ const filters = [
   { label: '失败', value: 'failed' },
 ];
 
-onMounted(() => store.fetchLinks());
-
-async function setFilter(status: string) {
-  activeFilter.value = status;
-  if (status) {
-    const res = await api.getLinks({ status });
+async function loadLinks() {
+  store.loading = true;
+  try {
+    const params: { limit: number; offset: number; status?: string; category_id?: number } = { limit: 20, offset: 0 };
+    if (activeFilter.value) {
+      params.status = activeFilter.value;
+    }
+    const catId = route.query.category;
+    if (catId) {
+      params.category_id = Number(catId);
+    }
+    const res = await api.getLinks(params);
     store.links = res.links;
     store.total = res.total;
-  } else {
-    await store.fetchLinks();
+  } finally {
+    store.loading = false;
   }
+}
+
+watch(
+  [() => route.query.category, activeFilter],
+  () => {
+    const catId = route.query.category;
+    if (catId) {
+      activeFilter.value = '';
+    }
+    loadLinks();
+  },
+  { immediate: true },
+);
+
+function setFilter(status: string) {
+  activeFilter.value = status;
 }
 
 function goToDetail(id: number) {
@@ -84,12 +102,23 @@ function goToDetail(id: number) {
 }
 
 async function handleAddLinks(urls: string[]) {
-  await api.addLinks(urls);
-  await store.fetchLinks();
+  try {
+    await api.addLinks(urls);
+    toast.show(`成功添加 ${urls.length} 个链接`, 'success');
+    await loadLinks();
+  } catch (e) {
+    toast.show('添加失败', 'error');
+  }
 }
 
 async function handleDelete(id: number) {
-  await store.removeLink(id);
+  try {
+    await api.deleteLink(id);
+    toast.show('链接已删除', 'success');
+    await loadLinks();
+  } catch (e) {
+    toast.show('删除失败', 'error');
+  }
 }
 </script>
 

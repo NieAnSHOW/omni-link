@@ -13,12 +13,13 @@ pub async fn get_links(
     limit: Option<i64>,
     offset: Option<i64>,
     status: Option<String>,
+    category_id: Option<i64>,
 ) -> AppResult<LinksResponse> {
     let conn = state.0.lock().unwrap();
     let lim = limit.unwrap_or(20);
     let off = offset.unwrap_or(0);
-    let links = link_repo::get_links(&conn, lim, off, status.as_deref())?;
-    let total = link_repo::get_links_count(&conn, status.as_deref())?;
+    let links = link_repo::get_links(&conn, lim, off, status.as_deref(), category_id)?;
+    let total = link_repo::get_links_count(&conn, status.as_deref(), category_id)?;
     Ok(LinksResponse { links, total })
 }
 

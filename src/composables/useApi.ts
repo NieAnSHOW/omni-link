@@ -3,11 +3,12 @@ import type { Link, LinkDetail, TagWithCount, CategoryNode } from '../types/inde
 
 export function useApi() {
   return {
-    getLinks: (params?: { limit?: number; offset?: number; status?: string }) =>
+    getLinks: (params?: { limit?: number; offset?: number; status?: string; category_id?: number }) =>
       invoke<{ links: Link[]; total: number }>('get_links', {
         limit: params?.limit ?? null,
         offset: params?.offset ?? null,
         status: params?.status ?? null,
+        category_id: params?.category_id ?? null,
       }),
 
     addLink: (url: string) =>
