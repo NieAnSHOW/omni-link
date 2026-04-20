@@ -5,12 +5,7 @@ use crate::config::ConfigState;
 use crate::db::DbState;
 use crate::error::{AppError, AppResult};
 use crate::models::{AiResultParsed, ContentParsed, LinkDetail};
-use crate::models::Link;
-use crate::repositories::{ai_result_repo, content_repo, link_repo};
-
-fn row_to_link(link: &crate::models::Link) -> Link {
-    link.clone()
-}
+use crate::repositories::{ai_result_repo, category_repo, content_repo, link_repo, tag_repo};
 
 #[tauri::command]
 pub async fn get_link_detail(state: State<'_, DbState>, id: i64) -> AppResult<LinkDetail> {
@@ -58,11 +53,11 @@ pub async fn analyze_content_cmd(
     config_state: State<'_, ConfigState>,
     content_id: i64,
 ) -> AppResult<serde_json::Value> {
-    let (body_text, title) = {
+    let (body_text, title, link_id) = {
         let conn = state.0.lock().unwrap();
         let content = content_repo::get_content_by_id(&conn, content_id)?
             .ok_or_else(|| AppError::NotFound("Content not found".into()))?;
-        (content.body_text.unwrap_or_default(), content.title)
+        (content.body_text.unwrap_or_default(), content.title, content.link_id)
     };
 
     let config = config_state.0.lock().unwrap().clone();
@@ -73,9 +68,11 @@ pub async fn analyze_content_cmd(
         .as_array()
         .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
         .unwrap_or_default();
-    let classification = result["classification"].as_str().map(String::from);
+    let classification = result["category"].as_str().map(String::from);
 
     let conn = state.0.lock().unwrap();
+
+    // AI 结果入库
     ai_result_repo::create_ai_result(
         &conn,
         content_id,
@@ -84,6 +81,26 @@ pub async fn analyze_content_cmd(
         classification.as_deref(),
         Some(&config.ai.provider),
     )?;
+
+    // 标签自动入库 + 关联
+    let tag_colors = [
+        "#50fa7b", "#8be9fd", "#ff79c6", "#f1fa8c",
+        "#ffb86c", "#bd93f9", "#ff5555", "#6272a4",
+    ];
+    let mut tag_ids = Vec::new();
+    for (i, tag_name) in tags.iter().enumerate() {
+        let color = tag_colors[i % tag_colors.len()];
+        let tag_id = tag_repo::ensure_tag(&conn, tag_name, color)?;
+        tag_ids.push(tag_id);
+    }
+    tag_repo::set_content_tags(&conn, content_id, &tag_ids)?;
+
+    // 分类自动推断
+    if let Some(ref cat_path) = classification {
+        if let Some(cat_id) = category_repo::find_or_create_by_path(&conn, cat_path)? {
+            let _ = link_repo::update_link_category(&conn, link_id, Some(cat_id));
+        }
+    }
 
     Ok(result)
 }
