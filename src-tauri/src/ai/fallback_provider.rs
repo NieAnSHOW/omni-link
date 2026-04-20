@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::error::AppResult;
+use super::ai_service::safe_truncate;
 
 const STOP_WORDS: &[&str] = &[
     "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一", "一个",
@@ -38,7 +39,7 @@ impl FallbackProvider {
     }
 
     pub async fn generate_summary(&self, text: &str, _title: Option<&str>) -> AppResult<serde_json::Value> {
-        let clean_text = &text[..text.len().min(10000)];
+        let clean_text = safe_truncate(text, 10000);
         let summary = generate_rule_summary(clean_text);
         let tags = extract_keywords(clean_text, 10);
         let category = classify_by_keywords(clean_text);

@@ -5,6 +5,17 @@ use super::fallback_provider::FallbackProvider;
 use super::ollama_provider::OllamaProvider;
 use super::openai_provider::OpenAiProvider;
 
+pub fn safe_truncate(text: &str, max_bytes: usize) -> &str {
+    if text.len() <= max_bytes {
+        return text;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    &text[..end]
+}
+
 pub async fn extract_content(config: &AiConfig, prompt: &str) -> AppResult<serde_json::Value> {
     let result = match config.provider.as_str() {
         "openai" => {

@@ -1,6 +1,7 @@
 use reqwest::Client;
 
 use crate::error::{AppError, AppResult};
+use super::ai_service::safe_truncate;
 
 pub struct OpenAiProvider {
     client: Client,
@@ -30,7 +31,7 @@ impl OpenAiProvider {
     }
 
     pub async fn generate_summary(&self, text: &str, title: Option<&str>) -> AppResult<serde_json::Value> {
-        let truncated = &text[..text.len().min(8000)];
+        let truncated = safe_truncate(text, 8000);
         let prompt = format!(
             "请对以下内容进行分析，返回JSON格式：\n\
              {{\"summary\": \"200字以内摘要\", \"tags\": [\"标签1\",\"标签2\",\"标签3\"], \"category\": \"一级分类/二级分类\"}}\n\
