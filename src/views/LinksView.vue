@@ -34,7 +34,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useLinksStore } from '../stores/links';
 import { useApi } from '../composables/useApi';
@@ -48,15 +48,6 @@ const showDialog = ref(false);
 const activeFilter = ref<string>('');
 const route = useRoute();
 
-watch(() => route.query.category, (catId) => {
-  if (catId) {
-    activeFilter.value = '';
-    api.getLinks({ status: undefined }).then(res => {
-      store.links = res.links;
-      store.total = res.total;
-    });
-  }
-}, { immediate: true });
 const { links, loading } = store;
 
 const filters = [
@@ -66,17 +57,39 @@ const filters = [
   { label: '失败', value: 'failed' },
 ];
 
-onMounted(() => store.fetchLinks());
-
-async function setFilter(status: string) {
-  activeFilter.value = status;
-  if (status) {
-    const res = await api.getLinks({ status });
+async function loadLinks() {
+  store.loading = true;
+  try {
+    const params: { limit: number; offset: number; status?: string; category_id?: number } = { limit: 20, offset: 0 };
+    if (activeFilter.value) {
+      params.status = activeFilter.value;
+    }
+    const catId = route.query.category;
+    if (catId) {
+      params.category_id = Number(catId);
+    }
+    const res = await api.getLinks(params);
     store.links = res.links;
     store.total = res.total;
-  } else {
-    await store.fetchLinks();
+  } finally {
+    store.loading = false;
   }
+}
+
+watch(
+  [() => route.query.category, activeFilter],
+  () => {
+    const catId = route.query.category;
+    if (catId) {
+      activeFilter.value = '';
+    }
+    loadLinks();
+  },
+  { immediate: true },
+);
+
+function setFilter(status: string) {
+  activeFilter.value = status;
 }
 
 function goToDetail(id: number) {
@@ -85,11 +98,12 @@ function goToDetail(id: number) {
 
 async function handleAddLinks(urls: string[]) {
   await api.addLinks(urls);
-  await store.fetchLinks();
+  await loadLinks();
 }
 
 async function handleDelete(id: number) {
-  await store.removeLink(id);
+  await api.deleteLink(id);
+  await loadLinks();
 }
 </script>
 
