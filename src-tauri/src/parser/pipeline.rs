@@ -36,12 +36,21 @@ pub async fn parse_link(
         (link.url, link.title)
     };
 
+    eprintln!("[Pipeline] === link_id={}, url={} ===", link_id, url);
+
     let platform = identifier::identify_platform(&url).to_string();
+    eprintln!("[Pipeline] link_id={}, platform={}", link_id, platform);
 
     // Step 1: WebView extraction
+    eprintln!("[Pipeline] link_id={}, Step 1: WebView extraction starting...", link_id);
     let extract_result = match webview_extractor::extract_via_webview(app, &url).await {
-        Ok(result) => result,
+        Ok(result) => {
+            eprintln!("[Pipeline] link_id={}, Step 1 OK: title='{}', md={}B, html={}B, images={}",
+                link_id, result.title, result.markdown.len(), result.body_html.len(), result.images.len());
+            result
+        }
         Err(e) => {
+            eprintln!("[Pipeline] link_id={}, Step 1 FAILED: {}", link_id, e);
             let conn = state.0.lock().unwrap();
             link_repo::update_link_status(&conn, link_id, "failed")?;
             return Ok(ParseResult {
@@ -64,19 +73,29 @@ pub async fn parse_link(
         title.unwrap_or(""),
         &extract_result.markdown,
     );
+    eprintln!("[Pipeline] link_id={}, Step 2: sufficient={}, reason='{}'",
+        link_id, judgement.is_sufficient, judgement.reason);
 
     let (final_markdown, final_status) = if judgement.is_sufficient {
         (extract_result.markdown.clone(), "success")
     } else {
         // Step 3: LLM fallback
+        eprintln!("[Pipeline] link_id={}, Step 3: LLM fallback starting...", link_id);
         let ai_config = config_state.0.lock().unwrap().ai.clone();
         match llm_extractor::extract_via_llm(&ai_config, &extract_result.raw_html, &url).await {
-            Ok(llm_result) => (llm_result.markdown, "llm_fallback"),
-            Err(_) => (extract_result.markdown.clone(), "failed"),
+            Ok(llm_result) => {
+                eprintln!("[Pipeline] link_id={}, Step 3 OK: md={}B", link_id, llm_result.markdown.len());
+                (llm_result.markdown, "llm_fallback")
+            }
+            Err(e) => {
+                eprintln!("[Pipeline] link_id={}, Step 3 FAILED: {}", link_id, e);
+                (extract_result.markdown.clone(), "failed")
+            }
         }
     };
 
     // Step 4: Store results
+    eprintln!("[Pipeline] link_id={}, Step 4: storing, status={}", link_id, final_status);
     let meta_value = serde_json::to_value(&extract_result.metadata)?;
 
     {

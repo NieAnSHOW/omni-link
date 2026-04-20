@@ -3,6 +3,9 @@
   "identifier": "default",
   "description": "Capability for the main window and extractor windows",
   "windows": ["main", "extractor-*"],
+  "remote": {
+    "urls": ["https://**", "http://**"]
+  },
   "permissions": [
     "core:default",
     "core:event:default",

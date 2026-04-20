@@ -1,12 +1,48 @@
 (function() {
   var EVENT_NAME = window.__EXTRACT_EVENT_NAME__ || 'extract-result';
+  var hasInternals = !!(window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke);
+  console.error('[extract.js] EVENT_NAME=' + EVENT_NAME + ' hasInternals=' + hasInternals);
+
+  function emitResult(data) {
+    if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) {
+      try {
+        window.__TAURI_INTERNALS__.invoke('plugin:event|emit', {
+          event: EVENT_NAME,
+          payload: data
+        }).then(function() {
+          console.error('[extract.js] emit succeeded');
+        }).catch(function(e) {
+          console.error('[extract.js] emit failed: ' + e);
+          fallbackNavigate(data);
+        });
+      } catch (e) {
+        console.error('[extract.js] invoke error: ' + e.message);
+        fallbackNavigate(data);
+      }
+    } else {
+      console.error('[extract.js] no __TAURI_INTERNALS__, using fallback');
+      fallbackNavigate(data);
+    }
+  }
+
+  function fallbackNavigate(data) {
+    try {
+      var payload = Object.assign({}, data);
+      delete payload.raw_html;
+      var encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+      window.location.href = 'omnilink-extract://done?data=' + encoded;
+    } catch (e) {
+      console.error('[extract.js] fallback encode error: ' + e.message);
+      window.location.href = 'omnilink-extract://done?error=' + encodeURIComponent(e.message);
+    }
+  }
 
   try {
     var reader = new Readability(document.cloneNode(true));
     var article = reader.parse();
 
     if (!article || (!article.title && (!article.textContent || article.textContent.trim().length === 0))) {
-      window.__TAURI__.event.emit(EVENT_NAME, {
+      emitResult({
         success: false,
         error: 'Readability failed to extract content'
       });
@@ -32,7 +68,7 @@
 
     var rawHtml = document.documentElement.outerHTML;
 
-    window.__TAURI__.event.emit(EVENT_NAME, {
+    emitResult({
       success: true,
       title: article.title || '',
       markdown: markdown,
@@ -46,7 +82,7 @@
       ))
     });
   } catch (e) {
-    window.__TAURI__.event.emit(EVENT_NAME, {
+    emitResult({
       success: false,
       error: e.message || 'Unknown extraction error'
     });

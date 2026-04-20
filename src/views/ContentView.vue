@@ -79,6 +79,14 @@ async function fetchDetail() {
   loading.value = true;
   try {
     detail.value = await api.getLinkDetail(Number(props.id));
+    console.log('[ContentView] fetchDetail:', {
+      linkId: detail.value?.link.id,
+      status: detail.value?.link.status,
+      hasContent: !!detail.value?.content,
+      bodyTextLen: detail.value?.content?.body_text?.length ?? 0,
+      bodyHtmlLen: detail.value?.content?.body_html?.length ?? 0,
+      contentStatus: detail.value?.content?.content_status,
+    });
     if (detail.value?.content && detail.value?.ai) {
       contentTags.value = detail.value.ai.tags.map(name => {
         const existing = tagsStore.tags.find(t => t.name === name);
@@ -100,8 +108,15 @@ async function fetchDetail() {
 async function parseLink() {
   parsing.value = true;
   try {
-    await api.parseLink(Number(props.id));
+    const result = await api.parseLink(Number(props.id));
+    console.log('[ContentView] parseLink result:', JSON.stringify(result, null, 2));
+    if (result.error) {
+      console.error('[ContentView] parseLink 返回错误:', result.error);
+    }
     await fetchDetail();
+  } catch (e) {
+    console.error('[ContentView] parseLink 异常:', e);
+    throw e;
   } finally {
     parsing.value = false;
   }

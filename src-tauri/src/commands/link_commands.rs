@@ -71,6 +71,8 @@ pub async fn parse_link_cmd(
     config: State<'_, ConfigState>,
     id: i64,
 ) -> AppResult<serde_json::Value> {
+    eprintln!("[CMD] parse_link_cmd invoked, id={}", id);
     let result = pipeline::parse_link(&app, &state, &config, id).await?;
+    eprintln!("[CMD] parse_link_cmd done, id={}, error={:?}", id, result.error);
     Ok(serde_json::to_value(result)?)
 }
