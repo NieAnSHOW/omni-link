@@ -225,7 +225,7 @@ async function handleSaveContent(title: string | null, bodyText: string) {
   if (!detail.value?.content) return;
   savingContent.value = true;
   try {
-    const html = marked(bodyText) as string;
+    const html = marked.parse(bodyText, { async: false });
     await api.updateContent(detail.value.content.id, title, bodyText, html);
     toast.show('内容已保存', 'success');
     isEditing.value = false;
@@ -239,7 +239,7 @@ async function handleSaveContent(title: string | null, bodyText: string) {
 
 const renderedMarkdown = computed(() => {
   if (!detail.value?.content?.body_text) return '';
-  return marked(detail.value.content.body_text);
+  return marked.parse(detail.value.content.body_text, { async: false });
 });
 </script>
 
