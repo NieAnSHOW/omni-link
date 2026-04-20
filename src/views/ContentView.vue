@@ -73,6 +73,7 @@ const contentTags = ref<TagWithCount[]>([]);
 onMounted(async () => {
   await fetchDetail();
   await tagsStore.fetchTags();
+  await categoriesStore.fetchCategories();
 });
 
 async function fetchDetail() {
