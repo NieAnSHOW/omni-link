@@ -82,7 +82,7 @@ impl OpenAiProvider {
             .send()
             .await?;
 
-        let data: serde_json::Value = response.json().await?;
+        let data: serde_json::Value = response.error_for_status()?.json().await?;
         let content_str = data["choices"][0]["message"]["content"]
             .as_str()
             .unwrap_or("{}");

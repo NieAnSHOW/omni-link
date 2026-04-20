@@ -31,8 +31,8 @@ pub async fn extract_via_llm(config: &AiConfig, html: &str, url: &str) -> AppRes
     })
 }
 
-fn truncate_html(html: &str, max_chars: usize) -> String {
-    if html.len() <= max_chars {
+fn truncate_html(html: &str, max_bytes: usize) -> String {
+    if html.len() <= max_bytes {
         return html.to_string();
     }
 
@@ -40,11 +40,15 @@ fn truncate_html(html: &str, max_chars: usize) -> String {
         let open = format!("<{}", tag);
         if let Some(start) = html.find(&open) {
             let subset = &html[start..];
-            if subset.len() <= max_chars {
+            if subset.len() <= max_bytes {
                 return subset.to_string();
             }
         }
     }
 
-    html[..max_chars].to_string()
+    let mut end = max_bytes;
+    while !html.is_char_boundary(end) {
+        end -= 1;
+    }
+    html[..end].to_string()
 }

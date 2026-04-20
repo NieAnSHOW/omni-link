@@ -75,7 +75,7 @@ impl OllamaProvider {
             .send()
             .await?;
 
-        let data: serde_json::Value = response.json().await?;
+        let data: serde_json::Value = response.error_for_status()?.json().await?;
         let response_str = data["response"].as_str().unwrap_or("{}");
 
         let result: serde_json::Value = serde_json::from_str(response_str)
