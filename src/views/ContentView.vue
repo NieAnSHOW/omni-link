@@ -35,7 +35,7 @@
       </div>
 
       <div v-if="detail.content" class="content-body">
-        <div v-if="detail.content.body_text" class="text-content">{{ detail.content.body_text }}</div>
+        <div v-if="detail.content.body_text" class="markdown-content" v-html="renderedMarkdown"></div>
         <div v-else-if="detail.content.body_html" v-html="detail.content.body_html" class="html-content"></div>
         <p v-else class="empty-state">无可显示内容</p>
       </div>
@@ -52,6 +52,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { marked } from 'marked';
 import { useApi } from '../composables/useApi';
 import { useTagsStore } from '../stores/tags';
 import { useCategoriesStore } from '../stores/categories';
@@ -137,6 +138,11 @@ const categoryName = computed(() => {
   };
   return find(categoriesStore.categories);
 });
+
+const renderedMarkdown = computed(() => {
+  if (!detail.value?.content?.body_text) return '';
+  return marked(detail.value.content.body_text);
+});
 </script>
 
 <style scoped>
@@ -164,10 +170,30 @@ const categoryName = computed(() => {
 }
 .btn-primary:disabled { opacity: 0.5; }
 .content-body {
-  line-height: 1.8; font-size: 15px; color: #334155;
-  white-space: pre-wrap;
+  line-height: 1.8;
+  font-size: 15px;
+  color: #334155;
 }
-.text-content {  overflow-y: auto; }
+.markdown-content {
+  overflow-y: auto;
+}
+.markdown-content :deep(h1) { font-size: 24px; margin: 24px 0 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+.markdown-content :deep(h2) { font-size: 20px; margin: 20px 0 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
+.markdown-content :deep(h3) { font-size: 18px; margin: 16px 0 8px; }
+.markdown-content :deep(h4) { font-size: 16px; margin: 14px 0 6px; }
+.markdown-content :deep(p) { margin: 8px 0; }
+.markdown-content :deep(ul), .markdown-content :deep(ol) { padding-left: 24px; margin: 8px 0; }
+.markdown-content :deep(li) { margin: 4px 0; }
+.markdown-content :deep(blockquote) { border-left: 4px solid #6366f1; padding: 4px 16px; margin: 12px 0; color: #64748b; background: #f8fafc; }
+.markdown-content :deep(code) { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+.markdown-content :deep(pre) { background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; }
+.markdown-content :deep(pre code) { background: none; padding: 0; color: inherit; }
+.markdown-content :deep(a) { color: #6366f1; text-decoration: none; }
+.markdown-content :deep(a:hover) { text-decoration: underline; }
+.markdown-content :deep(img) { max-width: 100%; border-radius: 8px; margin: 8px 0; }
+.markdown-content :deep(table) { border-collapse: collapse; width: 100%; margin: 12px 0; }
+.markdown-content :deep(th), .markdown-content :deep(td) { border: 1px solid #e2e8f0; padding: 8px 12px; text-align: left; }
+.markdown-content :deep(th) { background: #f8fafc; }
 .empty-state { text-align: center; color: #94a3b8; padding: 40px; }
 .category-badge {
   font-size: 11px; background: #f0f0ff; padding: 2px 8px;
