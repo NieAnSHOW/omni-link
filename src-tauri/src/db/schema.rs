@@ -24,6 +24,7 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
             body_text TEXT,
             images TEXT DEFAULT '[]',
             metadata TEXT DEFAULT '{}',
+            content_status TEXT DEFAULT 'success',
             created_at TEXT DEFAULT (datetime('now'))
         );
 
