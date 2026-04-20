@@ -17,41 +17,38 @@
         </router-link>
       </nav>
       <div class="category-section">
-        <CategoryTree
-          :categories="categories"
-          :selected-id="selectedCategoryId"
-          @select="handleCategorySelect"
-          @refresh="fetchCategories"
-        />
+        <CategoryTree :categories="categories" :selected-id="selectedCategoryId" @select="handleCategorySelect"
+          @refresh="fetchCategories" />
       </div>
     </aside>
     <main class="main-content">
       <router-view />
     </main>
+    <Toast />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, provide } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
+import { storeToRefs } from 'pinia';
 import CategoryTree from './CategoryTree.vue';
+import Toast from './Toast.vue';
 import { useCategoriesStore } from '../stores/categories';
 
 const router = useRouter();
 const categoriesStore = useCategoriesStore();
-const categories = ref(categoriesStore.categories);
+const { categories } = storeToRefs(categoriesStore);
 const selectedCategoryId = ref<number | null>(null);
 
 provide('selectedCategoryId', selectedCategoryId);
 
 onMounted(async () => {
   await categoriesStore.fetchCategories();
-  categories.value = categoriesStore.categories;
 });
 
 async function fetchCategories() {
   await categoriesStore.fetchCategories();
-  categories.value = categoriesStore.categories;
 }
 
 function handleCategorySelect(id: number | null) {
@@ -65,6 +62,7 @@ function handleCategorySelect(id: number | null) {
   display: flex;
   height: 100vh;
 }
+
 .sidebar {
   width: 250px;
   background: #f8f9fa;
@@ -74,6 +72,7 @@ function handleCategorySelect(id: number | null) {
   padding: 16px 0;
   overflow-y: auto;
 }
+
 .sidebar-header {
   display: flex;
   align-items: center;
@@ -81,9 +80,24 @@ function handleCategorySelect(id: number | null) {
   padding: 0 16px 16px;
   border-bottom: 1px solid #e2e8f0;
 }
-.logo { width: 28px; height: 28px; }
-.sidebar-header h1 { font-size: 18px; margin: 0; }
-.nav-section { padding: 8px; }
+
+.logo {
+  width: 28px;
+  height: 28px;
+}
+
+.sidebar-header h1 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.nav-section {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  row-gap: 5px;
+}
+
 .nav-item {
   display: flex;
   align-items: center;
@@ -94,12 +108,25 @@ function handleCategorySelect(id: number | null) {
   text-decoration: none;
   font-size: 14px;
 }
-.nav-item:hover { background: #e2e8f0; }
-.nav-item.active { background: #6366f1; color: white; }
+
+.nav-item:hover {
+  background: #e2e8f0;
+}
+
+.nav-item.active {
+  background: #6366f1;
+  color: white;
+}
+
 .category-section {
   flex: 1;
   border-top: 1px solid #e2e8f0;
   padding-top: 8px;
 }
-.main-content { flex: 1; overflow-y: auto; padding: 24px; }
+
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
 </style>

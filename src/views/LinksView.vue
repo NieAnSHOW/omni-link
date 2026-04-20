@@ -13,7 +13,9 @@
       </button>
     </div>
 
-    <div v-if="loading" class="empty-state">加载中...</div>
+    <div v-if="loading" class="link-list">
+      <LinkCardSkeleton v-for="i in 5" :key="i" />
+    </div>
     <div v-else-if="links.length === 0" class="empty-state">还没有链接，点击上方按钮添加</div>
     <div v-else class="link-list">
       <LinkCard
@@ -36,19 +38,22 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { storeToRefs } from 'pinia';
 import { useLinksStore } from '../stores/links';
 import { useApi } from '../composables/useApi';
+import { useToast } from '../composables/useToast';
 import LinkCard from '../components/LinkCard.vue';
+import LinkCardSkeleton from '../components/LinkCardSkeleton.vue';
 import AddLinkDialog from '../components/AddLinkDialog.vue';
 
 const router = useRouter();
 const store = useLinksStore();
+const { links, loading } = storeToRefs(store);
 const api = useApi();
+const toast = useToast();
 const showDialog = ref(false);
 const activeFilter = ref<string>('');
 const route = useRoute();
-
-const { links, loading } = store;
 
 const filters = [
   { label: '全部', value: '' },
@@ -97,13 +102,23 @@ function goToDetail(id: number) {
 }
 
 async function handleAddLinks(urls: string[]) {
-  await api.addLinks(urls);
-  await loadLinks();
+  try {
+    await api.addLinks(urls);
+    toast.show(`成功添加 ${urls.length} 个链接`, 'success');
+    await loadLinks();
+  } catch (e) {
+    toast.show('添加失败', 'error');
+  }
 }
 
 async function handleDelete(id: number) {
-  await api.deleteLink(id);
-  await loadLinks();
+  try {
+    await api.deleteLink(id);
+    toast.show('链接已删除', 'success');
+    await loadLinks();
+  } catch (e) {
+    toast.show('删除失败', 'error');
+  }
 }
 </script>
 

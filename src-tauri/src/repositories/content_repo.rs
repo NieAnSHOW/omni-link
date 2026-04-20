@@ -27,6 +27,7 @@ pub fn create_content(
     let images_json = serde_json::to_string(images)?;
     let metadata_json = serde_json::to_string(metadata)?;
 
+    conn.execute("DELETE FROM contents WHERE link_id = ?", params![link_id])?;
     conn.execute(
         "INSERT INTO contents (link_id, title, body_html, body_text, images, metadata, content_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
         params![link_id, title, body_html, body_text, images_json, metadata_json, content_status],
