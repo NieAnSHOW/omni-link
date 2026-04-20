@@ -14,7 +14,10 @@ pub async fn get_settings(state: State<'_, DbState>) -> AppResult<HashMap<String
 
 #[tauri::command]
 pub async fn get_ai_config(state: State<'_, ConfigState>) -> AppResult<AiConfig> {
-    let config = state.0.lock().unwrap();
+    let mut config = state.0.lock().unwrap();
+    if let Ok(reloaded) = config::load_config() {
+        *config = reloaded;
+    }
     Ok(config.ai.clone())
 }
 

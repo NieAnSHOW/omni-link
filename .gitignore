@@ -138,7 +138,7 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 server/tests
-src-tauri/target/debug
+src-tauri/target/
 .claude
 .superpowers
 config.json

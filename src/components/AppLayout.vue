@@ -66,7 +66,7 @@ function handleCategorySelect(id: number | null) {
   height: 100vh;
 }
 .sidebar {
-  width: 220px;
+  width: 250px;
   background: #f8f9fa;
   border-right: 1px solid #e2e8f0;
   display: flex;
