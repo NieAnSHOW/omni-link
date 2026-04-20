@@ -14,13 +14,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref } from 'vue'
+
 import { MdEditor } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
 
 const props = defineProps<{
   initialTitle: string | null;
   initialBody: string;
+  saving?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -30,15 +32,9 @@ const emit = defineEmits<{
 
 const editTitle = ref(props.initialTitle ?? '');
 const editBody = ref(props.initialBody);
-const saving = ref(false);
 
-async function handleSave() {
-  saving.value = true;
-  try {
-    emit('save', editTitle.value || null, editBody.value);
-  } finally {
-    saving.value = false;
-  }
+function handleSave() {
+  emit('save', editTitle.value || null, editBody.value);
 }
 </script>
 

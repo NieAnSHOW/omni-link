@@ -60,6 +60,7 @@
       <ContentEditor v-if="isEditing"
         :initial-title="detail.content?.title ?? null"
         :initial-body="detail.content?.body_text ?? ''"
+        :saving="savingContent"
         @save="handleSaveContent"
         @cancel="isEditing = false"
       />
@@ -218,8 +219,11 @@ async function handleCategoryChange(e: Event) {
   }
 }
 
+const savingContent = ref(false);
+
 async function handleSaveContent(title: string | null, bodyText: string) {
   if (!detail.value?.content) return;
+  savingContent.value = true;
   try {
     const html = marked(bodyText) as string;
     await api.updateContent(detail.value.content.id, title, bodyText, html);
@@ -228,6 +232,8 @@ async function handleSaveContent(title: string | null, bodyText: string) {
     await fetchDetail();
   } catch (e) {
     toast.show('保存失败', 'error');
+  } finally {
+    savingContent.value = false;
   }
 }
 
