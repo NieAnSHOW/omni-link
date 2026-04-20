@@ -72,23 +72,26 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
         CREATE INDEX IF NOT EXISTS idx_links_status ON links(status);
         CREATE INDEX IF NOT EXISTS idx_links_platform ON links(platform);
         CREATE INDEX IF NOT EXISTS idx_links_created ON links(created_at);
-        CREATE INDEX IF NOT EXISTS idx_contents_link ON contents(link_id);
-        CREATE INDEX IF NOT EXISTS idx_links_category ON links(category_id);",
+        CREATE INDEX IF NOT EXISTS idx_contents_link ON contents(link_id);",
     )?;
 
-    // Migrate existing DB: add category_id column if missing
+    // Migrate existing DB: add category_id column if missing, then create index
     migrate(conn)?;
 
     Ok(())
 }
 
 fn migrate(conn: &Connection) -> AppResult<()> {
-    // Add category_id to links if not present (SQLite ALTER TABLE has no IF NOT EXISTS)
     let has_category_id: bool = conn
         .prepare("SELECT category_id FROM links LIMIT 0")
         .is_ok();
     if !has_category_id {
-        conn.execute_batch("ALTER TABLE links ADD COLUMN category_id INTEGER;")?;
+        conn.execute_batch(
+            "ALTER TABLE links ADD COLUMN category_id INTEGER;
+             CREATE INDEX IF NOT EXISTS idx_links_category ON links(category_id);",
+        )?;
+    } else {
+        conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_links_category ON links(category_id);")?;
     }
     Ok(())
 }
