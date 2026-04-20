@@ -11,6 +11,7 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
             platform TEXT,
             source TEXT DEFAULT 'manual',
             status TEXT DEFAULT 'pending' CHECK(status IN ('pending','parsing','parsed','failed')),
+            category_id INTEGER,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
         );
@@ -23,6 +24,7 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
             body_text TEXT,
             images TEXT DEFAULT '[]',
             metadata TEXT DEFAULT '{}',
+            content_status TEXT DEFAULT 'success',
             created_at TEXT DEFAULT (datetime('now'))
         );
 
@@ -73,5 +75,33 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
         CREATE INDEX IF NOT EXISTS idx_links_created ON links(created_at);
         CREATE INDEX IF NOT EXISTS idx_contents_link ON contents(link_id);",
     )?;
+
+    // Migrate existing DB: add category_id column if missing, then create index
+    migrate(conn)?;
+
+    Ok(())
+}
+
+fn migrate(conn: &Connection) -> AppResult<()> {
+    let has_category_id: bool = conn
+        .prepare("SELECT category_id FROM links LIMIT 0")
+        .is_ok();
+    if !has_category_id {
+        conn.execute_batch(
+            "ALTER TABLE links ADD COLUMN category_id INTEGER;
+             CREATE INDEX IF NOT EXISTS idx_links_category ON links(category_id);",
+        )?;
+    } else {
+        conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_links_category ON links(category_id);")?;
+    }
+
+    // new: content_status migration
+    let has_content_status: bool = conn
+        .prepare("SELECT content_status FROM contents LIMIT 0")
+        .is_ok();
+    if !has_content_status {
+        conn.execute_batch("ALTER TABLE contents ADD COLUMN content_status TEXT DEFAULT 'success';")?;
+    }
+
     Ok(())
 }

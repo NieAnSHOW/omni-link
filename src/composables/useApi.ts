@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Link, LinkDetail } from '../types/index';
+import type { Link, LinkDetail, TagWithCount, CategoryNode } from '../types/index';
 
 export function useApi() {
   return {
@@ -53,5 +53,31 @@ export function useApi() {
         ollamaBaseUrl: params.ollamaBaseUrl ?? null,
         ollamaModel: params.ollamaModel ?? null,
       }),
+
+    // Tags
+    getTags: () =>
+      invoke<TagWithCount[]>('get_tags'),
+
+    createTag: (name: string, color?: string) =>
+      invoke<TagWithCount>('create_tag', { input: { name, color: color ?? null } }),
+
+    deleteTag: (id: number) =>
+      invoke<boolean>('delete_tag', { id }),
+
+    updateContentTags: (contentId: number, tagIds: number[]) =>
+      invoke<void>('update_content_tags', { contentId, tagIds }),
+
+    // Categories
+    getCategories: () =>
+      invoke<CategoryNode[]>('get_categories'),
+
+    upsertCategory: (params: { id?: number; name: string; parentId?: number | null }) =>
+      invoke<CategoryNode>('upsert_category', { input: { id: params.id ?? null, name: params.name, parent_id: params.parentId ?? null } }),
+
+    deleteCategory: (id: number) =>
+      invoke<boolean>('delete_category', { id }),
+
+    updateLinkCategory: (linkId: number, categoryId: number | null) =>
+      invoke<void>('update_link_category', { linkId, categoryId }),
   };
 }

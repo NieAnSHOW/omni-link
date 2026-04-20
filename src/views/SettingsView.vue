@@ -120,7 +120,7 @@ async function saveAiSettings() {
 </script>
 
 <style scoped>
-.settings-view { max-width: 600px; }
+.settings-view { width: 100%; }
 h2 { font-size: 22px; margin-bottom: 24px; }
 .setting-section {
   background: #f8f9fa; border-radius: 10px;

@@ -34,8 +34,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, onMounted, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { useLinksStore } from '../stores/links';
 import { useApi } from '../composables/useApi';
 import LinkCard from '../components/LinkCard.vue';
@@ -46,6 +46,17 @@ const store = useLinksStore();
 const api = useApi();
 const showDialog = ref(false);
 const activeFilter = ref<string>('');
+const route = useRoute();
+
+watch(() => route.query.category, (catId) => {
+  if (catId) {
+    activeFilter.value = '';
+    api.getLinks({ status: undefined }).then(res => {
+      store.links = res.links;
+      store.total = res.total;
+    });
+  }
+}, { immediate: true });
 const { links, loading } = store;
 
 const filters = [
@@ -83,7 +94,7 @@ async function handleDelete(id: number) {
 </script>
 
 <style scoped>
-.links-view { max-width: 800px; }
+.links-view { width: 100%; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .page-header h2 { font-size: 22px; }
 .btn-primary {

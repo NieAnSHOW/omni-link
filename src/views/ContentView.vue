@@ -10,15 +10,19 @@
         <div class="meta">
           <span class="platform-badge">{{ detail.link.platform || 'web' }}</span>
           <a :href="detail.link.url" target="_blank" class="original-link">查看原文 →</a>
+          <span v-if="categoryName" class="category-badge">{{ categoryName }}</span>
         </div>
       </div>
 
       <div v-if="detail.ai" class="ai-summary">
         <h3>AI 摘要</h3>
         <p>{{ detail.ai.summary }}</p>
-        <div class="tags" v-if="detail.ai.tags.length">
-          <span v-for="tag in detail.ai.tags" :key="tag" class="tag">{{ tag }}</span>
-        </div>
+        <TagInput
+          v-if="detail.content"
+          :model-value="contentTags"
+          :all-tags="tagsStore.tags"
+          @update:model-value="handleTagsUpdate"
+        />
       </div>
 
       <div class="actions">
@@ -31,7 +35,7 @@
       </div>
 
       <div v-if="detail.content" class="content-body">
-        <div v-if="detail.content.body_text" class="text-content">{{ detail.content.body_text }}</div>
+        <div v-if="detail.content.body_text" class="markdown-content" v-html="renderedMarkdown"></div>
         <div v-else-if="detail.content.body_html" v-html="detail.content.body_html" class="html-content"></div>
         <p v-else class="empty-state">无可显示内容</p>
       </div>
@@ -46,10 +50,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { marked } from 'marked';
 import { useApi } from '../composables/useApi';
-import type { LinkDetail } from '../types/index';
+import { useTagsStore } from '../stores/tags';
+import { useCategoriesStore } from '../stores/categories';
+import TagInput from '../components/TagInput.vue';
+import type { LinkDetail, TagWithCount } from '../types/index';
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
@@ -58,15 +66,40 @@ const detail = ref<LinkDetail | null>(null);
 const loading = ref(true);
 const parsing = ref(false);
 const analyzing = ref(false);
+const tagsStore = useTagsStore();
+const categoriesStore = useCategoriesStore();
+const contentTags = ref<TagWithCount[]>([]);
 
 onMounted(async () => {
   await fetchDetail();
+  await tagsStore.fetchTags();
 });
 
 async function fetchDetail() {
   loading.value = true;
   try {
     detail.value = await api.getLinkDetail(Number(props.id));
+    console.log('[ContentView] fetchDetail:', {
+      linkId: detail.value?.link.id,
+      status: detail.value?.link.status,
+      hasContent: !!detail.value?.content,
+      bodyTextLen: detail.value?.content?.body_text?.length ?? 0,
+      bodyHtmlLen: detail.value?.content?.body_html?.length ?? 0,
+      contentStatus: detail.value?.content?.content_status,
+    });
+    if (detail.value?.content && detail.value?.ai) {
+      contentTags.value = detail.value.ai.tags.map(name => {
+        const existing = tagsStore.tags.find(t => t.name === name);
+        return existing || {
+          id: -Date.now(),
+          name,
+          color: '#6366f1',
+          tag_type: 'auto' as const,
+          content_count: 0,
+          created_at: '',
+        };
+      });
+    }
   } finally {
     loading.value = false;
   }
@@ -75,8 +108,15 @@ async function fetchDetail() {
 async function parseLink() {
   parsing.value = true;
   try {
-    await api.parseLink(Number(props.id));
+    const result = await api.parseLink(Number(props.id));
+    console.log('[ContentView] parseLink result:', JSON.stringify(result, null, 2));
+    if (result.error) {
+      console.error('[ContentView] parseLink 返回错误:', result.error);
+    }
     await fetchDetail();
+  } catch (e) {
+    console.error('[ContentView] parseLink 异常:', e);
+    throw e;
   } finally {
     parsing.value = false;
   }
@@ -88,20 +128,47 @@ async function analyzeContent() {
   try {
     await api.analyzeContent(detail.value.content.id);
     await fetchDetail();
+    await tagsStore.fetchTags();
   } finally {
     analyzing.value = false;
   }
 }
+
+async function handleTagsUpdate(newTags: TagWithCount[]) {
+  if (!detail.value?.content) return;
+  contentTags.value = newTags;
+  const tagIds = newTags.map(t => t.id).filter(id => id > 0);
+  await api.updateContentTags(detail.value.content.id, tagIds);
+}
+
+const categoryName = computed(() => {
+  if (!detail.value?.link.category_id) return null;
+  const find = (nodes: any[]): string | null => {
+    for (const n of nodes) {
+      if (n.id === detail.value!.link.category_id) return n.name;
+      const found = find(n.children);
+      if (found) return found;
+    }
+    return null;
+  };
+  return find(categoriesStore.categories);
+});
+
+const renderedMarkdown = computed(() => {
+  if (!detail.value?.content?.body_text) return '';
+  return marked(detail.value.content.body_text);
+});
 </script>
 
 <style scoped>
-.content-view { max-width: 720px; }
+.content-view { width: 100%; }
 .btn-back { background: none; border: none; color: #6366f1; cursor: pointer; font-size: 14px; margin-bottom: 16px; }
 .content-header h2 { font-size: 22px; margin-bottom: 8px; }
 .meta { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
 .platform-badge { font-size: 11px; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; color: #64748b; }
 .original-link { font-size: 13px; color: #6366f1; text-decoration: none; }
 .ai-summary {
+  position: sticky; top: 0; z-index: 10;
   background: #f0f0ff; border-radius: 10px; padding: 16px;
   margin-bottom: 20px;
 }
@@ -118,9 +185,33 @@ async function analyzeContent() {
 }
 .btn-primary:disabled { opacity: 0.5; }
 .content-body {
-  line-height: 1.8; font-size: 15px; color: #334155;
-  white-space: pre-wrap;
+  line-height: 1.8;
+  font-size: 15px;
+  color: #334155;
 }
-.text-content { max-height: 600px; overflow-y: auto; }
+.markdown-content {
+  overflow-y: auto;
+}
+.markdown-content :deep(h1) { font-size: 24px; margin: 24px 0 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+.markdown-content :deep(h2) { font-size: 20px; margin: 20px 0 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
+.markdown-content :deep(h3) { font-size: 18px; margin: 16px 0 8px; }
+.markdown-content :deep(h4) { font-size: 16px; margin: 14px 0 6px; }
+.markdown-content :deep(p) { margin: 8px 0; }
+.markdown-content :deep(ul), .markdown-content :deep(ol) { padding-left: 24px; margin: 8px 0; }
+.markdown-content :deep(li) { margin: 4px 0; }
+.markdown-content :deep(blockquote) { border-left: 4px solid #6366f1; padding: 4px 16px; margin: 12px 0; color: #64748b; background: #f8fafc; }
+.markdown-content :deep(code) { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+.markdown-content :deep(pre) { background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; }
+.markdown-content :deep(pre code) { background: none; padding: 0; color: inherit; }
+.markdown-content :deep(a) { color: #6366f1; text-decoration: none; }
+.markdown-content :deep(a:hover) { text-decoration: underline; }
+.markdown-content :deep(img) { max-width: 100%; border-radius: 8px; margin: 8px 0; }
+.markdown-content :deep(table) { border-collapse: collapse; width: 100%; margin: 12px 0; }
+.markdown-content :deep(th), .markdown-content :deep(td) { border: 1px solid #e2e8f0; padding: 8px 12px; text-align: left; }
+.markdown-content :deep(th) { background: #f8fafc; }
 .empty-state { text-align: center; color: #94a3b8; padding: 40px; }
+.category-badge {
+  font-size: 11px; background: #f0f0ff; padding: 2px 8px;
+  border-radius: 4px; color: #6366f1;
+}
 </style>
