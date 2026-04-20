@@ -65,7 +65,12 @@ pub async fn delete_link(state: State<'_, DbState>, id: i64) -> AppResult<bool> 
 }
 
 #[tauri::command]
-pub async fn parse_link_cmd(state: State<'_, DbState>, id: i64) -> AppResult<serde_json::Value> {
-    let result = pipeline::parse_link(&state, id).await?;
+pub async fn parse_link_cmd(
+    app: tauri::AppHandle,
+    state: State<'_, DbState>,
+    config: State<'_, ConfigState>,
+    id: i64,
+) -> AppResult<serde_json::Value> {
+    let result = pipeline::parse_link(&app, &state, &config, id).await?;
     Ok(serde_json::to_value(result)?)
 }
