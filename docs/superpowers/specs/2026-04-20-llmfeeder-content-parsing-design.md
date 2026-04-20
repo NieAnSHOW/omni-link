@@ -117,19 +117,20 @@ URL → reqwest 获取 HTML → readability crate 提取 → 存 SQLite
 | `src-tauri/src/parser/extractor.rs` | 保留 metadata 提取，主要逻辑迁移至 webview_extractor |
 | `src-tauri/src/parser/fetcher.rs` | 保留用于非 WebView 场景（favicon 等） |
 | `src-tauri/Cargo.toml` | 可能需要更新 webview 相关依赖 |
-| `src-tauri/src/models.rs` | 可能添加 content_status 字段 |
+| `src-tauri/src/models.rs` | 添加 content_status 字段 |
 
 ### 不变文件
 
 - `identifier.rs` — 平台识别逻辑不变
 - `ai_service.rs` / 各 provider — 复用现有 AI 调用
-- 数据库 schema — body_text 字段已存在，无需迁移
+- `ai_service.rs` / 各 provider — 复用现有 AI 调用
 
 ## 存储策略
 
 - WebView 提取的 Markdown 直接存入现有 `body_text` 字段
-- `body_html` 字段继续保留（存原始 HTML 或 Readability 输出的 HTML）
-- 不新增数据库字段，不修改 schema
+- `body_html` 字段继续保留（存 Readability 输出的 HTML）
+- 新增 `content_status` 字段（TEXT，默认 "success"）用于跟踪解析状态：`success` / `llm_fallback` / `failed`
+- 需要一次数据库 migration 添加该字段
 
 ## 错误处理
 
