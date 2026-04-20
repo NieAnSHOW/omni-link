@@ -65,4 +65,31 @@ impl OpenAiProvider {
 
         Ok(result)
     }
+
+    pub async fn raw_completion(&self, prompt: &str) -> AppResult<serde_json::Value> {
+        let body = serde_json::json!({
+            "model": self.model,
+            "messages": [{ "role": "user", "content": prompt }],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.1,
+        });
+
+        let response = self.client
+            .post(format!("{}/chat/completions", self.base_url))
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await?;
+
+        let data: serde_json::Value = response.json().await?;
+        let content_str = data["choices"][0]["message"]["content"]
+            .as_str()
+            .unwrap_or("{}");
+
+        let result: serde_json::Value = serde_json::from_str(content_str)
+            .unwrap_or_else(|_| serde_json::json!({"title": "", "content": ""}));
+
+        Ok(result)
+    }
 }

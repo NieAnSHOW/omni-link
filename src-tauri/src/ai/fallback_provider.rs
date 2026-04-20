@@ -33,6 +33,10 @@ impl FallbackProvider {
         true
     }
 
+    pub async fn raw_completion(&self, _prompt: &str) -> AppResult<serde_json::Value> {
+        Err(crate::error::AppError::Ai("Fallback provider cannot extract content".into()))
+    }
+
     pub async fn generate_summary(&self, text: &str, _title: Option<&str>) -> AppResult<serde_json::Value> {
         let clean_text = &text[..text.len().min(10000)];
         let summary = generate_rule_summary(clean_text);

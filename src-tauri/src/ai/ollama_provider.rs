@@ -59,4 +59,28 @@ impl OllamaProvider {
 
         Ok(result)
     }
+
+    pub async fn raw_completion(&self, prompt: &str) -> AppResult<serde_json::Value> {
+        let body = serde_json::json!({
+            "model": self.model,
+            "prompt": prompt,
+            "stream": false,
+            "format": "json",
+        });
+
+        let response = self.client
+            .post(format!("{}/api/generate", self.base_url))
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await?;
+
+        let data: serde_json::Value = response.json().await?;
+        let response_str = data["response"].as_str().unwrap_or("{}");
+
+        let result: serde_json::Value = serde_json::from_str(response_str)
+            .unwrap_or_else(|_| serde_json::json!({"title": "", "content": ""}));
+
+        Ok(result)
+    }
 }
