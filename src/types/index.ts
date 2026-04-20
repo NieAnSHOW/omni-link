@@ -18,6 +18,7 @@ export interface Content {
   body_text: string | null;
   images: string[];
   metadata: Record<string, unknown>;
+  content_status: string | null;
   created_at: string;
 }
 

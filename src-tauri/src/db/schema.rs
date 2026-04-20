@@ -93,5 +93,14 @@ fn migrate(conn: &Connection) -> AppResult<()> {
     } else {
         conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_links_category ON links(category_id);")?;
     }
+
+    // new: content_status migration
+    let has_content_status: bool = conn
+        .prepare("SELECT content_status FROM contents LIMIT 0")
+        .is_ok();
+    if !has_content_status {
+        conn.execute_batch("ALTER TABLE contents ADD COLUMN content_status TEXT DEFAULT 'success';")?;
+    }
+
     Ok(())
 }

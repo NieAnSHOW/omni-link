@@ -22,6 +22,7 @@ pub struct Content {
     pub body_text: Option<String>,
     pub images: String,
     pub metadata: String,
+    pub content_status: Option<String>,
     pub created_at: String,
 }
 
@@ -34,6 +35,7 @@ pub struct ContentParsed {
     pub body_text: Option<String>,
     pub images: Vec<String>,
     pub metadata: serde_json::Value,
+    pub content_status: Option<String>,
     pub created_at: String,
 }
 

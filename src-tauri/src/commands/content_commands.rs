@@ -25,6 +25,7 @@ pub async fn get_link_detail(state: State<'_, DbState>, id: i64) -> AppResult<Li
             body_text: c.body_text,
             images,
             metadata,
+            content_status: c.content_status,
             created_at: c.created_at,
         }
     });
