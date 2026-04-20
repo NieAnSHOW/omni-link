@@ -39,7 +39,7 @@ import { ref } from 'vue';
 import type { CategoryNode } from '../types/index';
 import CategoryNodeItem from './CategoryNodeItem.vue';
 
-const props = defineProps<{
+defineProps<{
   categories: CategoryNode[];
   selectedId: number | null;
 }>();

@@ -10,15 +10,19 @@
         <div class="meta">
           <span class="platform-badge">{{ detail.link.platform || 'web' }}</span>
           <a :href="detail.link.url" target="_blank" class="original-link">查看原文 →</a>
+          <span v-if="categoryName" class="category-badge">{{ categoryName }}</span>
         </div>
       </div>
 
       <div v-if="detail.ai" class="ai-summary">
         <h3>AI 摘要</h3>
         <p>{{ detail.ai.summary }}</p>
-        <div class="tags" v-if="detail.ai.tags.length">
-          <span v-for="tag in detail.ai.tags" :key="tag" class="tag">{{ tag }}</span>
-        </div>
+        <TagInput
+          v-if="detail.content"
+          :model-value="contentTags"
+          :all-tags="tagsStore.tags"
+          @update:model-value="handleTagsUpdate"
+        />
       </div>
 
       <div class="actions">
@@ -46,10 +50,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useApi } from '../composables/useApi';
-import type { LinkDetail } from '../types/index';
+import { useTagsStore } from '../stores/tags';
+import { useCategoriesStore } from '../stores/categories';
+import TagInput from '../components/TagInput.vue';
+import type { LinkDetail, TagWithCount } from '../types/index';
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
@@ -58,15 +65,32 @@ const detail = ref<LinkDetail | null>(null);
 const loading = ref(true);
 const parsing = ref(false);
 const analyzing = ref(false);
+const tagsStore = useTagsStore();
+const categoriesStore = useCategoriesStore();
+const contentTags = ref<TagWithCount[]>([]);
 
 onMounted(async () => {
   await fetchDetail();
+  await tagsStore.fetchTags();
 });
 
 async function fetchDetail() {
   loading.value = true;
   try {
     detail.value = await api.getLinkDetail(Number(props.id));
+    if (detail.value?.content && detail.value?.ai) {
+      contentTags.value = detail.value.ai.tags.map(name => {
+        const existing = tagsStore.tags.find(t => t.name === name);
+        return existing || {
+          id: -Date.now(),
+          name,
+          color: '#6366f1',
+          tag_type: 'auto' as const,
+          content_count: 0,
+          created_at: '',
+        };
+      });
+    }
   } finally {
     loading.value = false;
   }
@@ -88,20 +112,42 @@ async function analyzeContent() {
   try {
     await api.analyzeContent(detail.value.content.id);
     await fetchDetail();
+    await tagsStore.fetchTags();
   } finally {
     analyzing.value = false;
   }
 }
+
+async function handleTagsUpdate(newTags: TagWithCount[]) {
+  if (!detail.value?.content) return;
+  contentTags.value = newTags;
+  const tagIds = newTags.map(t => t.id).filter(id => id > 0);
+  await api.updateContentTags(detail.value.content.id, tagIds);
+}
+
+const categoryName = computed(() => {
+  if (!detail.value?.link.category_id) return null;
+  const find = (nodes: any[]): string | null => {
+    for (const n of nodes) {
+      if (n.id === detail.value!.link.category_id) return n.name;
+      const found = find(n.children);
+      if (found) return found;
+    }
+    return null;
+  };
+  return find(categoriesStore.categories);
+});
 </script>
 
 <style scoped>
-.content-view { max-width: 720px; }
+.content-view { width: 100%; }
 .btn-back { background: none; border: none; color: #6366f1; cursor: pointer; font-size: 14px; margin-bottom: 16px; }
 .content-header h2 { font-size: 22px; margin-bottom: 8px; }
 .meta { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
 .platform-badge { font-size: 11px; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; color: #64748b; }
 .original-link { font-size: 13px; color: #6366f1; text-decoration: none; }
 .ai-summary {
+  position: sticky; top: 0; z-index: 10;
   background: #f0f0ff; border-radius: 10px; padding: 16px;
   margin-bottom: 20px;
 }
@@ -121,6 +167,10 @@ async function analyzeContent() {
   line-height: 1.8; font-size: 15px; color: #334155;
   white-space: pre-wrap;
 }
-.text-content { max-height: 600px; overflow-y: auto; }
+.text-content {  overflow-y: auto; }
 .empty-state { text-align: center; color: #94a3b8; padding: 40px; }
+.category-badge {
+  font-size: 11px; background: #f0f0ff; padding: 2px 8px;
+  border-radius: 4px; color: #6366f1;
+}
 </style>
