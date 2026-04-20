@@ -128,3 +128,11 @@ pub struct UpsertCategoryInput {
     pub name: String,
     pub parent_id: Option<i64>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateContentInput {
+    pub id: i64,
+    pub title: Option<String>,
+    pub body_text: Option<String>,
+    pub body_html: Option<String>,
+}

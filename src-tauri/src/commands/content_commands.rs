@@ -4,7 +4,7 @@ use crate::ai::ai_service;
 use crate::config::ConfigState;
 use crate::db::DbState;
 use crate::error::{AppError, AppResult};
-use crate::models::{AiResultParsed, ContentParsed, LinkDetail};
+use crate::models::{AiResultParsed, ContentParsed, LinkDetail, UpdateContentInput};
 use crate::repositories::{ai_result_repo, category_repo, content_repo, link_repo, tag_repo};
 
 #[tauri::command]
@@ -104,4 +104,17 @@ pub async fn analyze_content_cmd(
     }
 
     Ok(result)
+}
+
+#[tauri::command]
+pub async fn update_content_cmd(state: State<'_, DbState>, input: UpdateContentInput) -> AppResult<bool> {
+    let conn = state.0.lock().unwrap();
+    content_repo::update_content(
+        &conn,
+        input.id,
+        input.title.as_deref(),
+        input.body_text.as_deref(),
+        input.body_html.as_deref(),
+    )?;
+    Ok(true)
 }

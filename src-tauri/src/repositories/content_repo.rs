@@ -49,6 +49,20 @@ pub fn get_content_by_id(conn: &Connection, id: i64) -> AppResult<Option<Content
     Ok(content)
 }
 
+pub fn update_content(
+    conn: &Connection,
+    id: i64,
+    title: Option<&str>,
+    body_text: Option<&str>,
+    body_html: Option<&str>,
+) -> AppResult<()> {
+    conn.execute(
+        "UPDATE contents SET title = ?, body_text = ?, body_html = ?, updated_at = datetime('now') WHERE id = ?",
+        params![title, body_text, body_html, id],
+    )?;
+    Ok(())
+}
+
 fn row_to_content(row: &rusqlite::Row) -> rusqlite::Result<ContentRow> {
     Ok(ContentRow {
         id: row.get("id")?,
