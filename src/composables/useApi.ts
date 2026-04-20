@@ -80,5 +80,10 @@ export function useApi() {
 
     updateLinkCategory: (linkId: number, categoryId: number | null) =>
       invoke<void>('update_link_category', { linkId, categoryId }),
+
+    updateContent: (id: number, title: string | null, bodyText: string, bodyHtml: string) =>
+      invoke<boolean>('update_content_cmd', {
+        input: { id, title, body_text: bodyText, body_html: bodyHtml },
+      }),
   };
 }

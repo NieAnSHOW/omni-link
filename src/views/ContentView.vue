@@ -28,6 +28,9 @@
               :disabled="analyzing">
               {{ analyzing ? '分析中...' : 'AI 分析' }}
             </button>
+            <button v-if="detail.content && !isEditing" class="btn-secondary" @click="isEditing = true">
+              编辑
+            </button>
           </div>
         </div>
         <div class="meta">
@@ -54,17 +57,22 @@
 
 
 
-      <div v-if="detail.content" class="content-body">
-        <div v-if="detail.content.body_text" class="markdown-content" v-html="renderedMarkdown"></div>
-        <div v-else-if="detail.content.body_html" v-html="detail.content.body_html" class="html-content"></div>
-        <p v-else class="empty-state">无可显示内容</p>
-      </div>
-      <div v-else class="empty-state">
-        <p>内容尚未解析</p>
-        <!-- <button class="btn-primary" @click="parseLink" :disabled="parsing">
-          {{ parsing ? '解析中...' : '开始解析' }}
-        </button> -->
-      </div>
+      <ContentEditor v-if="isEditing"
+        :initial-title="detail.content?.title ?? null"
+        :initial-body="detail.content?.body_text ?? ''"
+        @save="handleSaveContent"
+        @cancel="isEditing = false"
+      />
+      <template v-else>
+        <div v-if="detail.content" class="content-body">
+          <div v-if="detail.content.body_text" class="markdown-content" v-html="renderedMarkdown"></div>
+          <div v-else-if="detail.content.body_html" v-html="detail.content.body_html" class="html-content"></div>
+          <p v-else class="empty-state">无可显示内容</p>
+        </div>
+        <div v-else class="empty-state">
+          <p>内容尚未解析</p>
+        </div>
+      </template>
     </template>
   </div>
 </template>
@@ -78,6 +86,7 @@ import { useToast } from '../composables/useToast';
 import { useTagsStore } from '../stores/tags';
 import { useCategoriesStore } from '../stores/categories';
 import TagInput from '../components/TagInput.vue';
+import ContentEditor from '../components/ContentEditor.vue';
 import type { LinkDetail, TagWithCount } from '../types/index';
 
 const props = defineProps<{ id: string }>();
@@ -92,6 +101,7 @@ const tagsStore = useTagsStore();
 const categoriesStore = useCategoriesStore();
 const contentTags = ref<TagWithCount[]>([]);
 const editingCategory = ref(false);
+const isEditing = ref(false);
 const selectedCategoryId = ref<number | null>(null);
 
 onMounted(async () => {
@@ -208,6 +218,19 @@ async function handleCategoryChange(e: Event) {
   }
 }
 
+async function handleSaveContent(title: string | null, bodyText: string) {
+  if (!detail.value?.content) return;
+  try {
+    const html = marked(bodyText) as string;
+    await api.updateContent(detail.value.content.id, title, bodyText, html);
+    toast.show('内容已保存', 'success');
+    isEditing.value = false;
+    await fetchDetail();
+  } catch (e) {
+    toast.show('保存失败', 'error');
+  }
+}
+
 const renderedMarkdown = computed(() => {
   if (!detail.value?.content?.body_text) return '';
   return marked(detail.value.content.body_text);
@@ -294,6 +317,9 @@ const renderedMarkdown = computed(() => {
 .actions {
   display: flex;
   gap: 8px;
+  width: 100%;
+  max-width: 190px;
+  justify-content: end;
 }
 
 .btn-primary {
