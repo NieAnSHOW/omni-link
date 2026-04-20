@@ -123,7 +123,29 @@ URL → reqwest 获取 HTML → readability crate 提取 → 存 SQLite
 
 - `identifier.rs` — 平台识别逻辑不变
 - `ai_service.rs` / 各 provider — 复用现有 AI 调用
-- `ai_service.rs` / 各 provider — 复用现有 AI 调用
+
+## 前端：Markdown 渲染
+
+`body_text` 现在存储 Markdown 而非纯文本，`ContentView.vue` 需要支持 Markdown 渲染。
+
+**变更文件：** `src/views/ContentView.vue`
+
+**当前行为（第 38 行）：**
+- `{{ detail.content.body_text }}` — 纯文本插值，Markdown 标记会原样显示
+
+**新行为：**
+- 引入 Markdown 渲染库（如 `marked`），将 `body_text` 解析为 HTML 后渲染
+- 使用 `v-html` 输出，配合 CSS 样式确保排版美观
+- 移除 `.content-body` 上的 `white-space: pre-wrap`（Markdown 渲染后自带换行）
+
+**新增依赖：**
+- `marked`（轻量 Markdown 解析库，~20KB，MIT 协议）
+- 可选：`highlight.js` 用于代码块语法高亮
+
+**渲染优先级：**
+1. `body_text` 存在 → Markdown 渲染
+2. `body_html` 存在 → 直接 `v-html` 渲染
+3. 都不存在 → 显示"无可显示内容"
 
 ## 存储策略
 
