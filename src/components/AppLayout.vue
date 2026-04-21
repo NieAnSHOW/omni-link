@@ -7,7 +7,7 @@
       </div>
       <nav class="nav-section">
         <router-link to="/links" class="nav-item" :class="{ active: isLinksActive }" :aria-current="isLinksActive ? 'page' : undefined">
-          <span class="icon">🔗</span> 链接
+          <span class="icon">📚</span> 知识库
         </router-link>
         <router-link to="/tags" class="nav-item" active-class="active">
           <span class="icon">🏷️</span> 标签

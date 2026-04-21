@@ -35,6 +35,8 @@ function formatDate(dateStr: string) {
   border: 1px solid #e2e8f0; border-radius: 10px;
   padding: 16px; cursor: pointer;
   transition: box-shadow 0.15s;
+  break-inside: avoid;
+  margin-bottom: 12px;
 }
 .link-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
 .link-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
@@ -49,7 +51,10 @@ function formatDate(dateStr: string) {
 .link-title {
   font-size: 15px; font-weight: 500; color: #1e293b;
   margin-bottom: 4px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 .link-url { font-size: 12px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .link-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }

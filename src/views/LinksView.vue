@@ -1,8 +1,8 @@
 <template>
   <div class="links-view">
     <div class="page-header">
-      <h2>我的链接</h2>
-      <button class="btn-primary" @click="showDialog = true">+ 添加链接</button>
+      <h2>我的知识库</h2>
+      <button class="btn-primary" @click="showDialog = true">+ 添加知识</button>
     </div>
 
     <div class="filters">
@@ -16,7 +16,7 @@
     <div v-if="loading" class="link-list">
       <LinkCardSkeleton v-for="i in 5" :key="i" />
     </div>
-    <div v-else-if="links.length === 0" class="empty-state">还没有链接，点击上方按钮添加</div>
+    <div v-else-if="links.length === 0" class="empty-state">还没有知识，点击上方按钮添加</div>
     <div v-else class="link-list">
       <LinkCard
         v-for="link in links"
@@ -95,7 +95,7 @@ function goToDetail(id: number) {
 async function handleAddLinks(urls: string[]) {
   try {
     await api.addLinks(urls);
-    toast.show(`成功添加 ${urls.length} 个链接`, 'success');
+    toast.show(`成功添加 ${urls.length} 条知识`, 'success');
     await loadLinks();
   } catch (e) {
     toast.show('添加失败', 'error');
@@ -105,7 +105,7 @@ async function handleAddLinks(urls: string[]) {
 async function handleDelete(id: number) {
   try {
     await api.deleteLink(id);
-    toast.show('链接已删除', 'success');
+    toast.show('知识已删除', 'success');
     await loadLinks();
   } catch (e) {
     toast.show('删除失败', 'error');
@@ -127,6 +127,18 @@ async function handleDelete(id: number) {
   border-radius: 6px; font-size: 13px; cursor: pointer; color: #64748b;
 }
 .filter-btn.active { background: #6366f1; color: white; border-color: #6366f1; }
-.link-list { display: flex; flex-direction: column; gap: 12px; }
+.link-list {
+  columns: 3;
+  column-gap: 12px;
+}
+
+@media (max-width: 899px) {
+  .link-list { columns: 2; }
+}
+
+@media (max-width: 599px) {
+  .link-list { columns: 1; }
+}
+
 .empty-state { text-align: center; color: #94a3b8; padding: 40px; }
 </style>
