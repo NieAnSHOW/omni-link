@@ -17,10 +17,16 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            tracing::info!("OmniLink application starting");
+            tracing::info!("Version: {}", env!("CARGO_PKG_VERSION"));
+
             let conn = db::database::init_connection()?;
             db::schema::init_schema(&conn)?;
+            tracing::info!("Database initialized successfully");
+
             config::migrate_ai_config_from_db(&conn)?;
             let app_config = config::load_config()?;
+            tracing::info!("Configuration loaded from: ~/.omnilink/config.json");
 
             // 初始化日志系统
             if let Err(e) = logger::init_logger(&app_config) {
@@ -30,6 +36,7 @@ pub fn run() {
             app.manage(DbState(std::sync::Mutex::new(conn)));
             app.manage(ConfigState(std::sync::Mutex::new(app_config)));
 
+            tracing::info!("OmniLink application setup completed");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
