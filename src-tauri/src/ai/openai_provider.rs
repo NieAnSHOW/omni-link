@@ -3,6 +3,23 @@ use reqwest::Client;
 use crate::error::AppResult;
 use super::ai_service::{safe_truncate, safe_truncate_with_info, sanitize_input};
 
+/// Strip Markdown code block markers from JSON responses
+/// Handles both ```json and ``` wrapped responses
+fn strip_markdown_json(s: &str) -> &str {
+    let trimmed = s.trim();
+    if trimmed.starts_with("```json") {
+        // Remove ```json at start and ``` at end
+        let without_start = trimmed.strip_prefix("```json").unwrap_or(trimmed).trim();
+        without_start.strip_suffix("```").unwrap_or(without_start).trim()
+    } else if trimmed.starts_with("```") {
+        // Remove ``` at start and end
+        let without_start = trimmed.strip_prefix("```").unwrap_or(trimmed).trim();
+        without_start.strip_suffix("```").unwrap_or(without_start).trim()
+    } else {
+        trimmed
+    }
+}
+
 pub struct OpenAiProvider {
     client: Client,
     api_key: String,
@@ -43,8 +60,8 @@ impl OpenAiProvider {
         let body = serde_json::json!({
             "model": self.model,
             "messages": [{ "role": "user", "content": prompt }],
-            "response_format": { "type": "json_object" },
             "temperature": 0.3,
+            "stream": false
         });
 
         let response = self.client
@@ -60,7 +77,8 @@ impl OpenAiProvider {
             .as_str()
             .unwrap_or("{}");
 
-        let result: serde_json::Value = serde_json::from_str(content_str)
+        let cleaned = strip_markdown_json(content_str);
+        let result: serde_json::Value = serde_json::from_str(cleaned)
             .unwrap_or_else(|_| serde_json::json!({"summary": "", "tags": []}));
 
         Ok(result)
@@ -70,7 +88,6 @@ impl OpenAiProvider {
         let body = serde_json::json!({
             "model": self.model,
             "messages": [{ "role": "user", "content": prompt }],
-            "response_format": { "type": "json_object" },
             "temperature": 0.1,
         });
 
@@ -87,7 +104,8 @@ impl OpenAiProvider {
             .as_str()
             .unwrap_or("{}");
 
-        let result: serde_json::Value = serde_json::from_str(content_str)
+        let cleaned = strip_markdown_json(content_str);
+        let result: serde_json::Value = serde_json::from_str(cleaned)
             .unwrap_or_else(|_| serde_json::json!({"title": "", "content": ""}));
 
         Ok(result)
@@ -130,7 +148,6 @@ impl OpenAiProvider {
         let body = serde_json::json!({
             "model": self.model,
             "messages": [{ "role": "user", "content": prompt }],
-            "response_format": { "type": "json_object" },
             "temperature": 0.3,
         });
 
@@ -144,12 +161,28 @@ impl OpenAiProvider {
 
         let data: serde_json::Value = response.json().await?;
 
+        // Log the full response for debugging
+        eprintln!("OpenAI API response: {}", serde_json::to_string_pretty(&data).unwrap_or_else(|_| "Failed to serialize".to_string()));
+
+        // Check for API errors first
+        if let Some(error) = data.get("error") {
+            let error_msg = error["message"].as_str().unwrap_or("Unknown API error");
+            return Err(crate::error::AppError::Ai(format!("OpenAI API error: {}", error_msg)));
+        }
+
         // ERROR HANDLING FIX: Properly propagate parse errors instead of silently returning empty objects
         let content_str = data["choices"][0]["message"]["content"]
             .as_str()
-            .ok_or_else(|| crate::error::AppError::Ai("AI response missing content field".to_string()))?;
+            .ok_or_else(|| {
+                eprintln!("Response structure: choices={:?}, message={:?}",
+                    data.get("choices"),
+                    data.get("choices").and_then(|c| c.get(0)).and_then(|c| c.get("message"))
+                );
+                crate::error::AppError::Ai("AI response missing content field".to_string())
+            })?;
 
-        let mut result: serde_json::Value = serde_json::from_str(content_str)
+        let cleaned = strip_markdown_json(content_str);
+        let mut result: serde_json::Value = serde_json::from_str(cleaned)
             .map_err(|e| crate::error::AppError::Ai(format!("Failed to parse AI response as JSON: {}", e)))?;
 
         // Add truncation warning to response

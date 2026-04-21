@@ -3,6 +3,23 @@ use reqwest::Client;
 use crate::error::AppResult;
 use super::ai_service::{safe_truncate, safe_truncate_with_info, sanitize_input};
 
+/// Strip Markdown code block markers from JSON responses
+/// Handles both ```json and ``` wrapped responses
+fn strip_markdown_json(s: &str) -> &str {
+    let trimmed = s.trim();
+    if trimmed.starts_with("```json") {
+        // Remove ```json at start and ``` at end
+        let without_start = trimmed.strip_prefix("```json").unwrap_or(trimmed).trim();
+        without_start.strip_suffix("```").unwrap_or(without_start).trim()
+    } else if trimmed.starts_with("```") {
+        // Remove ``` at start and end
+        let without_start = trimmed.strip_prefix("```").unwrap_or(trimmed).trim();
+        without_start.strip_suffix("```").unwrap_or(without_start).trim()
+    } else {
+        trimmed
+    }
+}
+
 pub struct OllamaProvider {
     client: Client,
     base_url: String,
@@ -54,7 +71,8 @@ impl OllamaProvider {
         let data: serde_json::Value = response.json().await?;
         let response_str = data["response"].as_str().unwrap_or("{}");
 
-        let result: serde_json::Value = serde_json::from_str(response_str)
+        let cleaned = strip_markdown_json(response_str);
+        let result: serde_json::Value = serde_json::from_str(cleaned)
             .unwrap_or_else(|_| serde_json::json!({"summary": "", "tags": []}));
 
         Ok(result)
@@ -78,7 +96,8 @@ impl OllamaProvider {
         let data: serde_json::Value = response.error_for_status()?.json().await?;
         let response_str = data["response"].as_str().unwrap_or("{}");
 
-        let result: serde_json::Value = serde_json::from_str(response_str)
+        let cleaned = strip_markdown_json(response_str);
+        let result: serde_json::Value = serde_json::from_str(cleaned)
             .unwrap_or_else(|_| serde_json::json!({"title": "", "content": ""}));
 
         Ok(result)
@@ -134,12 +153,24 @@ impl OllamaProvider {
 
         let data: serde_json::Value = response.error_for_status()?.json().await?;
 
+        // Log the full response for debugging
+        eprintln!("Ollama API response: {}", serde_json::to_string_pretty(&data).unwrap_or_else(|_| "Failed to serialize".to_string()));
+
+        // Check for API errors
+        if let Some(error) = data.get("error") {
+            return Err(crate::error::AppError::Ai(format!("Ollama API error: {}", error)));
+        }
+
         // ERROR HANDLING FIX: Properly propagate parse errors instead of silently returning empty objects
         let response_str = data["response"]
             .as_str()
-            .ok_or_else(|| crate::error::AppError::Ai("Ollama response missing response field".to_string()))?;
+            .ok_or_else(|| {
+                eprintln!("Response structure: {:?}", data);
+                crate::error::AppError::Ai("Ollama response missing response field".to_string())
+            })?;
 
-        let mut result: serde_json::Value = serde_json::from_str(response_str)
+        let cleaned = strip_markdown_json(response_str);
+        let mut result: serde_json::Value = serde_json::from_str(cleaned)
             .map_err(|e| crate::error::AppError::Ai(format!("Failed to parse Ollama response as JSON: {}", e)))?;
 
         // Add truncation warning to response
