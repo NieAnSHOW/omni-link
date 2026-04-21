@@ -64,6 +64,9 @@ const columnCount = computed(() =>
 );
 
 let resizeObs: ResizeObserver | undefined;
+let unlistenComplete: (() => void) | undefined;
+let unlistenFailed: (() => void) | undefined;
+
 onMounted(async () => {
   const el = document.querySelector('.main-content');
   if (el) {
@@ -73,17 +76,22 @@ onMounted(async () => {
   }
 
   // 监听 AI 处理完成事件
-  await listen('ai-process-complete', async () => {
+  unlistenComplete = await listen('ai-process-complete', async () => {
     toast.show('AI 整理完成', 'success');
     await loadLinks();
   });
 
-  await listen('ai-process-failed', async () => {
+  unlistenFailed = await listen('ai-process-failed', async () => {
     toast.show('AI 整理失败', 'error');
     await loadLinks();
   });
 });
-onUnmounted(() => resizeObs?.disconnect());
+
+onUnmounted(() => {
+  resizeObs?.disconnect();
+  unlistenComplete?.();
+  unlistenFailed?.();
+});
 
 function skeletonRows(col: number) {
   const total = 5;
