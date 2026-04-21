@@ -22,7 +22,11 @@
             </button>
             <button v-if="detail.content && !detail.ai" class="btn-secondary" @click="analyzeContent"
               :disabled="analyzing">
-              {{ analyzing ? '分析中...' : 'AI 分析' }}
+              {{ analyzing ? '摘要生成中...' : 'AI 摘要' }}
+            </button>
+            <button v-if="detail.content && detail.ai" class="btn-secondary" @click="analyzeContent"
+              :disabled="analyzing">
+              {{ analyzing ? '摘要生成中...' : '重新生成摘要' }}
             </button>
             <button v-if="detail.content && !isEditing" class="btn-secondary" @click="isEditing = true">
               编辑
@@ -40,6 +44,10 @@
         <p>{{ detail.ai.summary }}</p>
         <TagInput v-if="detail.content" :model-value="contentTags" :all-tags="tagsStore.tags"
           @update:model-value="handleTagsUpdate" />
+      </div>
+
+      <div v-if="autoAnalyzing" class="auto-analyzing-hint">
+        正在生成 AI 摘要...
       </div>
 
       <ContentEditor v-if="isEditing"
@@ -85,6 +93,7 @@ const analyzing = ref(false);
 const tagsStore = useTagsStore();
 const contentTags = ref<TagWithCount[]>([]);
 const isEditing = ref(false);
+const autoAnalyzing = ref(false);
 
 onMounted(async () => {
   await fetchDetail();
@@ -129,8 +138,22 @@ async function parseLink() {
       toast.show(result.error, 'error');
     } else {
       toast.show('解析完成', 'success');
+      await fetchDetail();
+      // 自动触发 AI 摘要
+      if (detail.value?.content) {
+        autoAnalyzing.value = true;
+        try {
+          await api.analyzeContent(detail.value.content.id);
+          toast.show('AI 摘要完成', 'success');
+          await fetchDetail();
+          await tagsStore.fetchTags();
+        } catch {
+          toast.show('AI 摘要失败', 'error');
+        } finally {
+          autoAnalyzing.value = false;
+        }
+      }
     }
-    await fetchDetail();
   } catch (e) {
     toast.show('解析失败', 'error');
   } finally {
@@ -418,5 +441,15 @@ const renderedMarkdown = computed(() => {
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 4px;
+}
+
+.auto-analyzing-hint {
+  text-align: center;
+  padding: 12px;
+  color: #6366f1;
+  font-size: 14px;
+  background: #f0f0ff;
+  border-radius: 8px;
+  margin-bottom: 16px;
 }
 </style>
