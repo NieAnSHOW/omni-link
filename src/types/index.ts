@@ -5,6 +5,7 @@ export interface Link {
   platform: string | null;
   source: string;
   status: 'pending' | 'parsing' | 'parsed' | 'failed';
+  ai_processing_status: 'idle' | 'organizing' | 'expanding' | 'both';
   created_at: string;
   updated_at: string;
 }
