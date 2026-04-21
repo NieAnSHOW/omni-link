@@ -36,13 +36,13 @@
           <span class="platform-badge">{{ detail.link.platform || 'web' }}</span>
           <a :href="detail.link.url" target="_blank" class="original-link">查看原文 →</a>
         </div>
+          <TagInput v-if="detail.content" :model-value="contentTags" :all-tags="tagsStore.tags"
+          @update:model-value="handleTagsUpdate" />
       </div>
 
       <div v-if="detail.ai" class="ai-summary">
-        <h3>AI 摘要</h3>
-        <p>{{ detail.ai.summary }}</p>
-        <TagInput v-if="detail.content" :model-value="contentTags" :all-tags="tagsStore.tags"
-          @update:model-value="handleTagsUpdate" />
+        <p><span>AI 摘要：</span>{{ detail.ai.summary }}</p>
+      
       </div>
 
       <div v-if="autoAnalyzing" class="auto-analyzing-hint">
@@ -304,7 +304,7 @@ const renderedMarkdown = computed(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .platform-badge {
@@ -328,10 +328,11 @@ const renderedMarkdown = computed(() => {
   background: #f0f0ff;
   border-radius: 10px;
   padding: 16px;
-  margin-bottom: 20px;
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
-.ai-summary h3 {
+.ai-summary span {
   font-size: 14px;
   color: #6366f1;
   margin-bottom: 8px;
