@@ -5,10 +5,15 @@ use crate::models::Link;
 
 pub fn create_link(conn: &Connection, url: &str, title: Option<&str>, source: Option<&str>) -> AppResult<Link> {
     let src = source.unwrap_or("manual");
+    tracing::debug!("Executing SQL: INSERT INTO links (url={}, title={:?}, source={})", url, title, src);
+
     conn.execute(
         "INSERT OR IGNORE INTO links (url, title, source) VALUES (?, ?, ?)",
         params![url, title, src],
-    )?;
+    ).map_err(|e| {
+        tracing::error!("Database error on create_link: {}", e);
+        e
+    })?;
 
     if conn.changes() == 0 {
         get_link_by_url(conn, url)?.ok_or_else(|| AppError::Db(rusqlite::Error::QueryReturnedNoRows))
@@ -31,22 +36,42 @@ pub fn get_link_by_id(conn: &Connection, id: i64) -> AppResult<Option<Link>> {
 }
 
 pub fn get_links(conn: &Connection, limit: i64, offset: i64, status: Option<&str>) -> AppResult<Vec<Link>> {
+    tracing::debug!("Executing SQL: SELECT links (limit={}, offset={}, status={:?})", limit, offset, status);
+
     let mut links = Vec::new();
     if let Some(s) = status {
         let mut stmt = conn.prepare(
             "SELECT * FROM links WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
-        )?;
-        let rows = stmt.query_map(params![s, limit, offset], |row| row_to_link(row))?;
+        ).map_err(|e| {
+            tracing::error!("Database error on get_links prepare: {}", e);
+            e
+        })?;
+        let rows = stmt.query_map(params![s, limit, offset], |row| row_to_link(row)).map_err(|e| {
+            tracing::error!("Database error on get_links query_map: {}", e);
+            e
+        })?;
         for row in rows {
-            links.push(row?);
+            links.push(row.map_err(|e| {
+                tracing::error!("Database error on get_links row mapping: {}", e);
+                e
+            })?);
         }
     } else {
         let mut stmt = conn.prepare(
             "SELECT * FROM links ORDER BY created_at DESC LIMIT ? OFFSET ?",
-        )?;
-        let rows = stmt.query_map(params![limit, offset], |row| row_to_link(row))?;
+        ).map_err(|e| {
+            tracing::error!("Database error on get_links prepare: {}", e);
+            e
+        })?;
+        let rows = stmt.query_map(params![limit, offset], |row| row_to_link(row)).map_err(|e| {
+            tracing::error!("Database error on get_links query_map: {}", e);
+            e
+        })?;
         for row in rows {
-            links.push(row?);
+            links.push(row.map_err(|e| {
+                tracing::error!("Database error on get_links row mapping: {}", e);
+                e
+            })?);
         }
     }
     Ok(links)
@@ -69,7 +94,11 @@ pub fn update_link_title(conn: &Connection, id: i64, title: &str) -> AppResult<(
 }
 
 pub fn delete_link(conn: &Connection, id: i64) -> AppResult<bool> {
-    conn.execute("DELETE FROM links WHERE id = ?", params![id])?;
+    tracing::debug!("Executing SQL: DELETE FROM links WHERE id={}", id);
+    conn.execute("DELETE FROM links WHERE id = ?", params![id]).map_err(|e| {
+        tracing::error!("Database error on delete_link: {}", e);
+        e
+    })?;
     Ok(conn.changes() > 0)
 }
 
