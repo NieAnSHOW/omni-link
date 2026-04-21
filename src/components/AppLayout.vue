@@ -10,7 +10,7 @@
           <span class="icon">📚</span> 知识库
         </router-link>
         <router-link to="/tags" class="nav-item" active-class="active">
-          <span class="icon">🏷️</span> 标签
+          <span class="icon">🧠</span> 智识图谱
         </router-link>
         <router-link to="/settings" class="nav-item" active-class="active">
           <span class="icon">⚙️</span> 设置
