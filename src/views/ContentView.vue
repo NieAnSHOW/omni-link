@@ -1,6 +1,8 @@
 <template>
   <div class="content-view">
-    <button class="btn-back" @click="router.back()">← 返回</button>
+    <StickyHeader :z-index="30" background="#ffffff">
+      <button class="btn-back" @click="router.back()">← 返回</button>
+    </StickyHeader>
 
     <div v-if="loading" class="skeleton-detail">
       <div class="skeleton-bar" style="width: 60%; height: 24px; margin-bottom: 12px;"></div>
@@ -13,6 +15,7 @@
     </div>
     <div v-else-if="!detail" class="empty-state">内容不存在</div>
     <template v-else>
+      <StickyHeader :z-index="20" background="#ffffff">
       <div class="content-header">
         <div class="top-btn">
           <h2>{{ detail.link.title || '未命名' }}</h2>
@@ -37,13 +40,16 @@
           <a :href="detail.link.url" target="_blank" class="original-link">查看原文 →</a>
         </div>
       </div>
+      </StickyHeader>
 
-      <div v-if="detail.ai" class="ai-summary">
-        <h3>AI 摘要</h3>
-        <p>{{ detail.ai.summary }}</p>
-        <TagInput v-if="detail.content" :model-value="contentTags" :all-tags="tagsStore.tags"
-          @update:model-value="handleTagsUpdate" />
-      </div>
+      <StickyHeader v-if="detail.ai" :z-index="10" background="#f0f0ff">
+        <div class="ai-summary">
+          <h3>AI 摘要</h3>
+          <p>{{ detail.ai.summary }}</p>
+          <TagInput v-if="detail.content" :model-value="contentTags" :all-tags="tagsStore.tags"
+            @update:model-value="handleTagsUpdate" />
+        </div>
+      </StickyHeader>
 
       <div v-if="autoAnalyzing" class="auto-analyzing-hint">
         正在生成 AI 摘要...
@@ -121,6 +127,7 @@ import { useToast } from '../composables/useToast';
 import { useTagsStore } from '../stores/tags';
 import TagInput from '../components/TagInput.vue';
 import ContentEditor from '../components/ContentEditor.vue';
+import StickyHeader from '../components/StickyHeader.vue';
 import type { LinkDetail, TagWithCount } from '../types/index';
 
 const props = defineProps<{ id: string }>();
@@ -350,9 +357,6 @@ const renderedMarkdown = computed(() => {
 }
 
 .ai-summary {
-  position: sticky;
-  top: 0;
-  z-index: 10;
   background: #f0f0ff;
   border-radius: 10px;
   padding: 16px;
