@@ -1,5 +1,7 @@
-use tauri::State;
+use rusqlite::params;
+use tauri::{Emitter, State};
 
+use crate::ai::ai_service;
 use crate::config::ConfigState;
 use crate::db::DbState;
 use crate::error::{AppError, AppResult};
@@ -105,4 +107,87 @@ pub async fn parse_link_cmd(
     let result = pipeline::parse_link(&app, &state, &config, id).await?;
     eprintln!("[CMD] parse_link_cmd done, id={}, error={:?}", id, result.error);
     Ok(serde_json::to_value(result)?)
+}
+
+#[tauri::command]
+pub async fn start_ai_process(
+    link_id: i64,
+    mode: String,
+    state: State<'_, DbState>,
+    config: State<'_, ConfigState>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    use crate::repositories::content_repo;
+
+    // 1. 更新 ai_processing_status
+    {
+        let conn = state.0.lock().map_err(|e| e.to_string())?;
+        link_repo::update_ai_processing_status(&conn, link_id, &mode)
+            .map_err(|e| e.to_string())?;
+    }
+
+    // 2. 异步执行 AI 处理
+    let db_mutex = state.0.clone();
+    let config_clone = config.0.lock().map_err(|e| e.to_string())?.clone();
+    tauri::async_runtime::spawn(async move {
+        // 获取 content_id
+        let content_id_result = {
+            let conn = db_mutex.lock().unwrap();
+            conn.query_row(
+                "SELECT id FROM contents WHERE link_id = ?1",
+                params![link_id],
+                |row| row.get::<_, i64>(0),
+            )
+        };
+
+        if let Ok(content_id) = content_id_result {
+            // 获取正文内容
+            let (body_text, title) = {
+                let conn = db_mutex.lock().unwrap();
+                match content_repo::get_content_by_id(&conn, content_id) {
+                    Ok(Some(c)) => (c.body_text.unwrap_or_default(), c.title),
+                    _ => {
+                        {
+                            let conn = db_mutex.lock().unwrap();
+                            let _ = link_repo::update_ai_processing_status(&conn, link_id, "idle");
+                        }
+                        let _ = app_handle.emit("ai-process-failed", link_id);
+                        return;
+                    }
+                }
+            };
+
+            // 执行 AI 处理
+            let result: Result<serde_json::Value, _> = match mode.as_str() {
+                "analyze" => ai_service::analyze_content(&config_clone.ai, &body_text, title.as_deref()).await,
+                "organize" => ai_service::organize_content(&config_clone.ai, &body_text).await,
+                "expand" => ai_service::expand_content(&config_clone.ai, &body_text, title.as_deref()).await,
+                _ => {
+                    Err(crate::error::AppError::Ai(format!("Unknown mode: {}", mode)).into())
+                }
+            };
+
+            // 3. 处理完成，重置状态
+            {
+                let conn = db_mutex.lock().unwrap();
+                let _ = link_repo::update_ai_processing_status(&conn, link_id, "idle");
+            }
+
+            // 4. 发送前端事件
+            if result.is_ok() {
+                let _ = app_handle.emit("ai-process-complete", link_id);
+            } else {
+                let _ = app_handle.emit("ai-process-failed", link_id);
+            }
+        } else {
+            // 未找到 content，重置状态
+            {
+                let conn = db_mutex.lock().unwrap();
+                let _ = link_repo::update_ai_processing_status(&conn, link_id, "idle");
+            }
+            let _ = app_handle.emit("ai-process-failed", link_id);
+        }
+    });
+
+    Ok(())
 }
