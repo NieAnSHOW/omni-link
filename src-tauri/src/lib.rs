@@ -35,6 +35,7 @@ pub fn run() {
             commands::content_commands::get_link_detail,
             commands::content_commands::analyze_content_cmd,
             commands::content_commands::update_content_cmd,
+            commands::content_commands::ai_process_content_cmd,
             commands::settings_commands::get_settings,
             commands::settings_commands::get_ai_config,
             commands::settings_commands::update_ai_config,
