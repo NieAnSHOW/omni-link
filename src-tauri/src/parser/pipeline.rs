@@ -28,6 +28,8 @@ pub async fn parse_link(
     config_state: &State<'_, ConfigState>,
     link_id: i64,
 ) -> AppResult<ParseResult> {
+    tracing::info!("Starting parse for link_id={}", link_id);
+
     let (url, existing_title) = {
         let conn = state.0.lock().unwrap();
         let link = link_repo::get_link_by_id(&conn, link_id)?
@@ -39,17 +41,21 @@ pub async fn parse_link(
     eprintln!("[Pipeline] === link_id={}, url={} ===", link_id, url);
 
     let platform = identifier::identify_platform(&url).to_string();
+    tracing::debug!("Platform identified: link_id={}, platform={}", link_id, platform);
     eprintln!("[Pipeline] link_id={}, platform={}", link_id, platform);
 
     // Step 1: WebView extraction
     eprintln!("[Pipeline] link_id={}, Step 1: WebView extraction starting...", link_id);
     let extract_result = match webview_extractor::extract_via_webview(app, &url).await {
         Ok(result) => {
+            tracing::info!("Content extraction successful: link_id={}, title='{}', markdown_size={}B, images={}",
+                link_id, result.title, result.markdown.len(), result.images.len());
             eprintln!("[Pipeline] link_id={}, Step 1 OK: title='{}', md={}B, html={}B, images={}",
                 link_id, result.title, result.markdown.len(), result.body_html.len(), result.images.len());
             result
         }
         Err(e) => {
+            tracing::error!("Content extraction failed: link_id={}, error={}", link_id, e);
             eprintln!("[Pipeline] link_id={}, Step 1 FAILED: {}", link_id, e);
             let conn = state.0.lock().unwrap();
             link_repo::update_link_status(&conn, link_id, "failed")?;
@@ -80,14 +86,19 @@ pub async fn parse_link(
         (extract_result.markdown.clone(), "success")
     } else {
         // Step 3: LLM fallback
+        tracing::warn!("Content insufficient, falling back to LLM: link_id={}, reason='{}'",
+            link_id, judgement.reason);
         eprintln!("[Pipeline] link_id={}, Step 3: LLM fallback starting...", link_id);
         let ai_config = config_state.0.lock().unwrap().ai.clone();
         match llm_extractor::extract_via_llm(&ai_config, &extract_result.raw_html, &url).await {
             Ok(llm_result) => {
+                tracing::info!("LLM extraction successful: link_id={}, markdown_size={}B",
+                    link_id, llm_result.markdown.len());
                 eprintln!("[Pipeline] link_id={}, Step 3 OK: md={}B", link_id, llm_result.markdown.len());
                 (llm_result.markdown, "llm_fallback")
             }
             Err(e) => {
+                tracing::error!("LLM extraction failed: link_id={}, error={}", link_id, e);
                 eprintln!("[Pipeline] link_id={}, Step 3 FAILED: {}", link_id, e);
                 (extract_result.markdown.clone(), "failed")
             }
