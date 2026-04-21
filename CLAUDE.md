@@ -10,7 +10,7 @@ OmniLink — 跨平台链接采集 + 内容解析 + AI 知识结构化的桌面�
 
 ```bash
 npm install              # 安装前端依赖
-npm run tauri dev        # 开发模式（Vite + Rust 后端热重载）
+npm run dev:all          # 开发模式（Vite + Rust 后端热重载）
 npm run tauri build      # 生产构建
 npm run dev              # 仅前端 Vite dev server（端口 1420）
 npm run build            # 前端类型检查 + Vite 构建（不含 Rust）
@@ -43,7 +43,7 @@ npm run build            # 前端类型检查 + Vite 构建（不含 Rust）
 
 ### Database
 
-SQLite 存储于 `~/.omnilink/omnilink.db`，7 张表：links、contents、tags、content_tags、categories、ai_results、user_settings、import_history。Schema 和迁移在 `db/schema.rs`。
+SQLite 存储于 `~/.omnilink/omnilink.db`，6 张表：links、contents、tags、content_tags、ai_results、user_settings、import_history。Schema 和迁移在 `db/schema.rs`。
 
 配置文件位于 `~/.omnilink/config.json`。
 
