@@ -22,6 +22,11 @@ pub fn run() {
             config::migrate_ai_config_from_db(&conn)?;
             let app_config = config::load_config()?;
 
+            // 初始化日志系统
+            if let Err(e) = logger::init_logger(&app_config) {
+                eprintln!("Failed to initialize logger: {}", e);
+            }
+
             app.manage(DbState(std::sync::Mutex::new(conn)));
             app.manage(ConfigState(std::sync::Mutex::new(app_config)));
 
