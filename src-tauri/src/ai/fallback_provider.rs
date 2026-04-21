@@ -39,6 +39,27 @@ impl FallbackProvider {
             "tags": tags,
         }))
     }
+
+    pub async fn process_content(&self, text: &str, mode: &str, _search_context: Option<&str>) -> AppResult<serde_json::Value> {
+        let clean_text = safe_truncate(text, 10000);
+        match mode {
+            "organize" => {
+                // 简单整理：按段落去空行、添加基本结构
+                let paragraphs: Vec<&str> = clean_text
+                    .split("\n\n")
+                    .map(|p| p.trim())
+                    .filter(|p| !p.is_empty())
+                    .collect();
+                let organized = paragraphs.join("\n\n");
+                Ok(serde_json::json!({ "body_text": organized }))
+            }
+            "expand" => {
+                // Fallback 无法扩展，返回原文
+                Ok(serde_json::json!({ "body_text": clean_text.to_string() }))
+            }
+            _ => Err(crate::error::AppError::Ai(format!("Unknown mode: {}", mode))),
+        }
+    }
 }
 
 fn extract_keywords(text: &str, top_n: usize) -> Vec<String> {

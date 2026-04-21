@@ -92,4 +92,58 @@ impl OpenAiProvider {
 
         Ok(result)
     }
+
+    pub async fn process_content(&self, text: &str, mode: &str, search_context: Option<&str>) -> AppResult<serde_json::Value> {
+        let truncated = safe_truncate(text, 12000);
+        let prompt = match mode {
+            "organize" => format!(
+                "你是一个内容整理专家。请对以下文档内容进行整理：\n\
+                 - 修正排版问题，使用规范的 Markdown 格式\n\
+                 - 去除冗余和重复内容\n\
+                 - 补全缺失的标题层级和结构\n\
+                 - 保留原文的核心信息和语义，不要删减实质内容\n\
+                 - 输出 JSON 格式：{{\"body_text\": \"整理后的完整 Markdown 内容\"}}\n\n\
+                 内容：{}", truncated
+            ),
+            "expand" => {
+                let search_part = search_context.unwrap_or("无额外搜索结果");
+                format!(
+                    "你是一个内容扩展专家。基于以下原文和搜索结果，对文档进行扩展：\n\
+                     - 针对原文中可以深入展开的内容进行补充\n\
+                     - 整合搜索结果中的相关信息\n\
+                     - 保持原文结构和核心内容不变\n\
+                     - 扩展内容自然融入原文，不突兀\n\
+                     - 使用 Markdown 格式\n\
+                     - 输出 JSON 格式：{{\"body_text\": \"扩展后的完整 Markdown 内容\"}}\n\n\
+                     原文：{}\n\n搜索结果：{}", truncated, search_part
+                )
+            }
+            _ => return Err(crate::error::AppError::Ai(format!("Unknown mode: {}", mode))),
+        };
+
+        let body = serde_json::json!({
+            "model": self.model,
+            "messages": [{ "role": "user", "content": prompt }],
+            "response_format": { "type": "json_object" },
+            "temperature": 0.3,
+        });
+
+        let response = self.client
+            .post(format!("{}/chat/completions", self.base_url))
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await?;
+
+        let data: serde_json::Value = response.json().await?;
+        let content_str = data["choices"][0]["message"]["content"]
+            .as_str()
+            .unwrap_or("{}");
+
+        let result: serde_json::Value = serde_json::from_str(content_str)
+            .unwrap_or_else(|_| serde_json::json!({"body_text": ""}));
+
+        Ok(result)
+    }
 }
