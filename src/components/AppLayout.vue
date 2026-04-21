@@ -6,7 +6,8 @@
         <h1>OmniLink</h1>
       </div>
       <nav class="nav-section">
-        <router-link to="/links" class="nav-item" :class="{ active: isLinksActive }" :aria-current="isLinksActive ? 'page' : undefined">
+        <router-link to="/links" class="nav-item" :class="{ active: isLinksActive }"
+          :aria-current="isLinksActive ? 'page' : undefined">
           <span class="icon">📚</span> 知识库
         </router-link>
         <router-link to="/tags" class="nav-item" active-class="active">
@@ -97,6 +98,6 @@ const isLinksActive = computed(() => route.path.startsWith('/links'));
 .main-content {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
+  padding: 0 24px;
 }
 </style>

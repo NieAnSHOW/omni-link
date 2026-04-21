@@ -1,14 +1,9 @@
 <template>
-  <div
-    ref="headerRef"
-    class="sticky-header"
-    :class="{ 'is-stuck': isStuck }"
-    :style="{
-      zIndex: zIndex,
-      background: background,
-      top: 0
-    }"
-  >
+  <div ref="headerRef" class="sticky-header" :class="{ 'is-stuck': isStuck }" :style="{
+    zIndex: zIndex,
+    background: background,
+    top: `${topOffset || 0}px`
+  }">
     <slot></slot>
   </div>
 </template>
@@ -19,6 +14,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 interface Props {
   zIndex: number;
   background?: string;
+  topOffset?: number
 }
 
 const headerRef = ref<HTMLElement | null>(null);
@@ -51,9 +47,5 @@ onUnmounted(() => {
 .sticky-header {
   position: sticky;
   transition: box-shadow 0.2s;
-}
-
-.sticky-header.is-stuck {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 </style>

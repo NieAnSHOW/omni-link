@@ -15,41 +15,36 @@
     </div>
     <div v-else-if="!detail" class="empty-state">内容不存在</div>
     <template v-else>
-      <StickyHeader :z-index="20" background="#ffffff">
-      <div class="content-header">
-        <div class="top-btn">
-          <h2>{{ detail.link.title || '未命名' }}</h2>
-          <div class="actions">
-            <button v-if="detail.link.status !== 'parsing'" class="btn-primary" @click="parseLink" :disabled="parsing">
-              {{ parsing ? '解析中...' : (detail.content ? '重新解析' : '解析内容') }}
-            </button>
-            <button v-if="detail.content" class="btn-secondary" @click="analyzeContent"
-              :disabled="analyzing">
-              {{ analyzing ? '摘要生成中...' : (detail.ai ? '重新生成摘要' : 'AI 摘要') }}
-            </button>
-            <button v-if="detail.content" class="btn-secondary" @click="showAiProcessModal = true">
-              AI 整理
-            </button>
-            <button v-if="detail.content && !isEditing" class="btn-secondary" @click="isEditing = true">
-              编辑
-            </button>
+      <StickyHeader :top-offset="34" :z-index="30" background="#ffffff">
+        <div class="content-header">
+          <div class="top-btn">
+            <h2>{{ detail.link.title || '未命名' }}</h2>
+            <div class="actions">
+              <button v-if="detail.link.status !== 'parsing'" class="btn-primary" @click="parseLink"
+                :disabled="parsing">
+                {{ parsing ? '解析中...' : (detail.content ? '重新解析' : '解析内容') }}
+              </button>
+              <button v-if="detail.content" class="btn-secondary" @click="analyzeContent" :disabled="analyzing">
+                {{ analyzing ? '摘要生成中...' : (detail.ai ? '重新生成摘要' : 'AI 摘要') }}
+              </button>
+              <button v-if="detail.content" class="btn-secondary" @click="showAiProcessModal = true">
+                AI 整理
+              </button>
+              <button v-if="detail.content && !isEditing" class="btn-secondary" @click="isEditing = true">
+                编辑
+              </button>
+            </div>
           </div>
-        </div>
-        <div class="meta">
-          <span class="platform-badge">{{ detail.link.platform || 'web' }}</span>
-          <a :href="detail.link.url" target="_blank" class="original-link">查看原文 →</a>
-        </div>
-          <TagInput v-if="detail.content" :model-value="contentTags" :all-tags="tagsStore.tags"
-          @update:model-value="handleTagsUpdate" />
-      </div>
-      </StickyHeader>
-
-      <StickyHeader v-if="detail.ai" :z-index="10" background="#f0f0ff">
-        <div class="ai-summary">
-          <h3>AI 摘要</h3>
-          <p>{{ detail.ai.summary }}</p>
+          <div class="meta">
+            <span class="platform-badge">{{ detail.link.platform || 'web' }}</span>
+            <a :href="detail.link.url" target="_blank" class="original-link">查看原文 →</a>
+          </div>
           <TagInput v-if="detail.content" :model-value="contentTags" :all-tags="tagsStore.tags"
             @update:model-value="handleTagsUpdate" />
+        </div>
+
+        <div class="ai-summary" v-if="detail.ai">
+          <p><span>AI 摘要：</span>{{ detail.ai.summary }}</p>
         </div>
       </StickyHeader>
 
@@ -57,13 +52,9 @@
         正在生成 AI 摘要...
       </div>
 
-      <ContentEditor v-if="isEditing"
-        :initial-title="detail.content?.title ?? null"
-        :initial-body="detail.content?.body_text ?? ''"
-        :saving="savingContent"
-        @save="handleSaveContent"
-        @cancel="isEditing = false"
-      />
+      <ContentEditor v-if="isEditing" :initial-title="detail.content?.title ?? null"
+        :initial-body="detail.content?.body_text ?? ''" :saving="savingContent" @save="handleSaveContent"
+        @cancel="isEditing = false" />
       <template v-else>
         <div v-if="detail.content" class="content-body">
           <div v-if="detail.content.body_text" class="markdown-content" v-html="renderedMarkdown"></div>
@@ -77,7 +68,8 @@
     </template>
 
     <!-- AI 整理选项弹窗 -->
-    <div v-if="showAiProcessModal" class="modal-overlay" @click.self="closeAiProcessModal" @keydown.escape="closeAiProcessModal">
+    <div v-if="showAiProcessModal" class="modal-overlay" @click.self="closeAiProcessModal"
+      @keydown.escape="closeAiProcessModal">
       <div class="modal-content" role="dialog" aria-modal="true">
         <div class="modal-header">
           <h3>选择 AI 处理方式</h3>
@@ -99,7 +91,8 @@
     </div>
 
     <!-- 确认弹窗 -->
-    <div v-if="showConfirmModal" class="modal-overlay" @click.self="closeConfirmModal" @keydown.escape="closeConfirmModal">
+    <div v-if="showConfirmModal" class="modal-overlay" @click.self="closeConfirmModal"
+      @keydown.escape="closeConfirmModal">
       <div class="modal-content" role="dialog" aria-modal="true">
         <div class="modal-header">
           <h3>确认操作</h3>
@@ -363,7 +356,10 @@ const renderedMarkdown = computed(() => {
 .ai-summary span {
   font-size: 14px;
   color: #6366f1;
-  margin-bottom: 8px;
+}
+
+.ai-summary p {
+  font-size: 14px;
 }
 
 .tags {
