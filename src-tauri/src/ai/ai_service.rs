@@ -42,6 +42,9 @@ pub fn safe_truncate_with_info(text: &str, max_bytes: usize) -> (String, bool) {
 }
 
 pub async fn extract_content(config: &AiConfig, prompt: &str) -> AppResult<serde_json::Value> {
+    tracing::info!("AI extract_content called: provider={}", config.provider);
+    tracing::debug!("AI extract_content: prompt_size={}B", prompt.len());
+
     let result = match config.provider.as_str() {
         "openai" => {
             let provider = OpenAiProvider::new(
@@ -49,6 +52,7 @@ pub async fn extract_content(config: &AiConfig, prompt: &str) -> AppResult<serde
                 &config.openai.base_url,
                 &config.openai.model,
             );
+            tracing::debug!("Calling OpenAI provider: model={}", config.openai.model);
             provider.raw_completion(prompt).await
         }
         "ollama" => {
@@ -56,14 +60,23 @@ pub async fn extract_content(config: &AiConfig, prompt: &str) -> AppResult<serde
                 &config.ollama.base_url,
                 &config.ollama.model,
             );
+            tracing::debug!("Calling Ollama provider: model={}", config.ollama.model);
             provider.raw_completion(prompt).await
         }
-        _ => Err(crate::error::AppError::Ai("No AI provider configured".into())),
+        _ => {
+            tracing::error!("No AI provider configured");
+            Err(crate::error::AppError::Ai("No AI provider configured".into()))
+        }
     };
 
     match result {
-        Ok(val) => Ok(val),
-        Err(_) => {
+        Ok(val) => {
+            tracing::info!("AI extract_content successful: provider={}", config.provider);
+            Ok(val)
+        }
+        Err(e) => {
+            tracing::error!("AI provider failed: provider={}, error={}", config.provider, e);
+            tracing::warn!("Falling back to rule-based provider");
             let fallback = FallbackProvider::new();
             fallback.raw_completion(prompt).await
         }
@@ -71,6 +84,9 @@ pub async fn extract_content(config: &AiConfig, prompt: &str) -> AppResult<serde
 }
 
 pub async fn analyze_content(config: &AiConfig, text: &str, title: Option<&str>) -> AppResult<serde_json::Value> {
+    tracing::info!("AI analyze_content called: provider={}, title={:?}", config.provider, title);
+    tracing::debug!("AI analyze_content: text_size={}B", text.len());
+
     let result = match config.provider.as_str() {
         "openai" => {
             let provider = OpenAiProvider::new(
@@ -78,6 +94,7 @@ pub async fn analyze_content(config: &AiConfig, text: &str, title: Option<&str>)
                 &config.openai.base_url,
                 &config.openai.model,
             );
+            tracing::debug!("Calling OpenAI provider for analysis: model={}", config.openai.model);
             provider.generate_summary(text, title).await
         }
         "ollama" => {
@@ -85,17 +102,24 @@ pub async fn analyze_content(config: &AiConfig, text: &str, title: Option<&str>)
                 &config.ollama.base_url,
                 &config.ollama.model,
             );
+            tracing::debug!("Calling Ollama provider for analysis: model={}", config.ollama.model);
             provider.generate_summary(text, title).await
         }
         _ => {
+            tracing::warn!("No AI provider configured, using fallback provider");
             let provider = FallbackProvider::new();
             provider.generate_summary(text, title).await
         }
     };
 
     match result {
-        Ok(val) => Ok(val),
+        Ok(val) => {
+            tracing::info!("AI analyze_content successful: provider={}", config.provider);
+            Ok(val)
+        }
         Err(e) => {
+            tracing::error!("AI provider failed: provider={}, error={}", config.provider, e);
+            tracing::warn!("Falling back to rule-based provider");
             eprintln!("AI provider failed: {}, falling back to rule-based provider", e);
             let fallback = FallbackProvider::new();
             fallback.generate_summary(text, title).await
@@ -104,6 +128,9 @@ pub async fn analyze_content(config: &AiConfig, text: &str, title: Option<&str>)
 }
 
 pub async fn organize_content(config: &AiConfig, text: &str) -> AppResult<serde_json::Value> {
+    tracing::info!("AI organize_content called: provider={}", config.provider);
+    tracing::debug!("AI organize_content: text_size={}B", text.len());
+
     let result = match config.provider.as_str() {
         "openai" => {
             let provider = OpenAiProvider::new(
@@ -111,6 +138,7 @@ pub async fn organize_content(config: &AiConfig, text: &str) -> AppResult<serde_
                 &config.openai.base_url,
                 &config.openai.model,
             );
+            tracing::debug!("Calling OpenAI provider for organization: model={}", config.openai.model);
             provider.process_content(text, "organize", None).await
         }
         "ollama" => {
@@ -118,17 +146,24 @@ pub async fn organize_content(config: &AiConfig, text: &str) -> AppResult<serde_
                 &config.ollama.base_url,
                 &config.ollama.model,
             );
+            tracing::debug!("Calling Ollama provider for organization: model={}", config.ollama.model);
             provider.process_content(text, "organize", None).await
         }
         _ => {
+            tracing::warn!("No AI provider configured, using fallback provider");
             let provider = FallbackProvider::new();
             provider.process_content(text, "organize", None).await
         }
     };
 
     match result {
-        Ok(val) => Ok(val),
+        Ok(val) => {
+            tracing::info!("AI organize_content successful: provider={}", config.provider);
+            Ok(val)
+        }
         Err(e) => {
+            tracing::error!("AI provider failed: provider={}, error={}", config.provider, e);
+            tracing::warn!("Falling back to rule-based provider");
             eprintln!("AI provider failed: {}, falling back to rule-based provider", e);
             let fallback = FallbackProvider::new();
             fallback.process_content(text, "organize", None).await
@@ -137,6 +172,9 @@ pub async fn organize_content(config: &AiConfig, text: &str) -> AppResult<serde_
 }
 
 pub async fn expand_content(config: &AiConfig, text: &str, title: Option<&str>) -> AppResult<serde_json::Value> {
+    tracing::info!("AI expand_content called: provider={}, title={:?}", config.provider, title);
+    tracing::debug!("AI expand_content: text_size={}B", text.len());
+
     let search_context = search_related_content(title, text).await.unwrap_or_else(|e| {
         eprintln!("Search failed: {}, continuing without context", e);
         String::new()
@@ -151,6 +189,7 @@ pub async fn expand_content(config: &AiConfig, text: &str, title: Option<&str>) 
                 &config.openai.base_url,
                 &config.openai.model,
             );
+            tracing::debug!("Calling OpenAI provider for expansion: model={}", config.openai.model);
             provider.process_content(text, "expand", ctx).await
         }
         "ollama" => {
@@ -158,17 +197,24 @@ pub async fn expand_content(config: &AiConfig, text: &str, title: Option<&str>) 
                 &config.ollama.base_url,
                 &config.ollama.model,
             );
+            tracing::debug!("Calling Ollama provider for expansion: model=", config.ollama.model);
             provider.process_content(text, "expand", ctx).await
         }
         _ => {
+            tracing::warn!("No AI provider configured, using fallback provider");
             let provider = FallbackProvider::new();
             provider.process_content(text, "expand", ctx).await
         }
     };
 
     match result {
-        Ok(val) => Ok(val),
+        Ok(val) => {
+            tracing::info!("AI expand_content successful: provider={}", config.provider);
+            Ok(val)
+        }
         Err(e) => {
+            tracing::error!("AI provider failed: provider={}, error={}", config.provider, e);
+            tracing::warn!("Falling back to rule-based provider");
             eprintln!("AI provider failed: {}, falling back to rule-based provider", e);
             let fallback = FallbackProvider::new();
             fallback.process_content(text, "expand", ctx).await
