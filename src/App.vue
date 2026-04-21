@@ -8,12 +8,14 @@
   </div>
   <template v-else>
     <AppLayout />
+    <ScrollToTop />
   </template>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import AppLayout from './components/AppLayout.vue';
+import ScrollToTop from './components/ScrollToTop.vue';
 
 const SPLASH_DURATION = 1200;
 const FADE_DURATION = 300;
