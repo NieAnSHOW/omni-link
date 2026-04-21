@@ -21,13 +21,11 @@ interface Props {
   background?: string;
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  background: '#ffffff'
-});
-
 const headerRef = ref<HTMLElement | null>(null);
 const isStuck = ref(false);
 let observer: IntersectionObserver | null = null;
+
+defineProps<Props>();
 
 onMounted(() => {
   if (headerRef.value) {

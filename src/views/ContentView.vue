@@ -148,12 +148,6 @@ const showConfirmModal = ref(false);
 const pendingAiMode = ref('');
 const aiProcessingText = ref('');
 
-const modeLabels: Record<string, string> = {
-  organize: 'AI 整理中...',
-  expand: 'AI 扩展中...',
-  both: 'AI 整理并扩展中...',
-};
-
 async function handleAiProcess(mode: string) {
   if (!detail.value?.content || aiProcessing.value) return;
   showAiProcessModal.value = false;
