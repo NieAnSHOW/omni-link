@@ -197,7 +197,7 @@ pub async fn expand_content(config: &AiConfig, text: &str, title: Option<&str>) 
                 &config.ollama.base_url,
                 &config.ollama.model,
             );
-            tracing::debug!("Calling Ollama provider for expansion: model=", config.ollama.model);
+            tracing::debug!("Calling Ollama provider for expansion: model={}", config.ollama.model);
             provider.process_content(text, "expand", ctx).await
         }
         _ => {
