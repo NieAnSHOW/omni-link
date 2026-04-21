@@ -3,6 +3,7 @@ mod commands;
 mod config;
 mod db;
 mod error;
+mod logger;
 mod models;
 mod parser;
 mod repositories;

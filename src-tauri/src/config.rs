@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Mutex;
+use tracing_subscriber::filter::LevelFilter;
 
 use crate::error::AppResult;
 
@@ -12,6 +13,19 @@ pub enum LogLevel {
     Info,
     Debug,
     Trace,
+}
+
+impl LogLevel {
+    /// 转换为 tracing_subscriber 的 LevelFilter
+    pub fn to_level_filter(&self) -> LevelFilter {
+        match self {
+            LogLevel::Error => LevelFilter::ERROR,
+            LogLevel::Warn => LevelFilter::WARN,
+            LogLevel::Info => LevelFilter::INFO,
+            LogLevel::Debug => LevelFilter::DEBUG,
+            LogLevel::Trace => LevelFilter::TRACE,
+        }
+    }
 }
 
 impl Default for LogLevel {
@@ -257,5 +271,16 @@ mod tests {
 
         let config: AppConfig = serde_json::from_str(json).unwrap();
         assert_eq!(config.log.level, LogLevel::Debug);
+    }
+
+    #[test]
+    fn test_loglevel_to_level_filter() {
+        use tracing_subscriber::filter::LevelFilter;
+
+        assert_eq!(LogLevel::Error.to_level_filter(), LevelFilter::ERROR);
+        assert_eq!(LogLevel::Warn.to_level_filter(), LevelFilter::WARN);
+        assert_eq!(LogLevel::Info.to_level_filter(), LevelFilter::INFO);
+        assert_eq!(LogLevel::Debug.to_level_filter(), LevelFilter::DEBUG);
+        assert_eq!(LogLevel::Trace.to_level_filter(), LevelFilter::TRACE);
     }
 }
