@@ -6,7 +6,7 @@
         <h1>OmniLink</h1>
       </div>
       <nav class="nav-section">
-        <router-link to="/links" class="nav-item" active-class="active">
+        <router-link to="/links" class="nav-item" :class="{ active: isLinksActive }" :aria-current="isLinksActive ? 'page' : undefined">
           <span class="icon">🔗</span> 链接
         </router-link>
         <router-link to="/tags" class="nav-item" active-class="active">
@@ -29,14 +29,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, provide } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted, provide } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import CategoryTree from './CategoryTree.vue';
 import Toast from './Toast.vue';
 import { useCategoriesStore } from '../stores/categories';
 
 const router = useRouter();
+const route = useRoute();
+const isLinksActive = computed(() => route.path.startsWith('/links'));
 const categoriesStore = useCategoriesStore();
 const { categories } = storeToRefs(categoriesStore);
 const selectedCategoryId = ref<number | null>(null);

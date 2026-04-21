@@ -103,5 +103,14 @@ fn migrate(conn: &Connection) -> AppResult<()> {
         conn.execute_batch("ALTER TABLE contents ADD COLUMN content_status TEXT DEFAULT 'success';")?;
     }
 
+    // new: updated_at for contents
+    let has_updated_at: bool = conn
+        .prepare("SELECT updated_at FROM contents LIMIT 0")
+        .is_ok();
+    if !has_updated_at {
+        conn.execute_batch("ALTER TABLE contents ADD COLUMN updated_at TEXT;")?;
+        conn.execute_batch("UPDATE contents SET updated_at = datetime('now') WHERE updated_at IS NULL;")?;
+    }
+
     Ok(())
 }
