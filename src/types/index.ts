@@ -5,7 +5,6 @@ export interface Link {
   platform: string | null;
   source: string;
   status: 'pending' | 'parsing' | 'parsed' | 'failed';
-  category_id: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -25,7 +24,6 @@ export interface Content {
 export interface AiResult {
   summary: string | null;
   tags: string[];
-  classification: string | null;
   provider: string | null;
 }
 
@@ -51,18 +49,4 @@ export interface TagWithCount {
   tag_type: 'auto' | 'manual';
   content_count: number;
   created_at: string;
-}
-
-export interface Category {
-  id: number;
-  name: string;
-  parent_id: number | null;
-  created_at: string;
-}
-
-export interface CategoryNode {
-  id: number;
-  name: string;
-  parent_id: number | null;
-  children: CategoryNode[];
 }

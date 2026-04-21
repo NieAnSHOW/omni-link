@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::error::AppResult;
-use super::ai_service::safe_truncate;
+use super::ai_service::{safe_truncate, safe_truncate_with_info, sanitize_input};
 
 const STOP_WORDS: &[&str] = &[
     "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一", "一个",
@@ -12,15 +12,6 @@ const STOP_WORDS: &[&str] = &[
     "should", "may", "might", "shall", "can", "need", "dare", "ought",
     "and", "but", "or", "if", "then", "else", "when", "at", "from",
     "to", "in", "on", "with", "for", "of", "not", "this", "that",
-];
-
-const CATEGORY_RULES: &[(&str, &str)] = &[
-    ("rust|golang|python|java|typescript|javascript|编程|开发|api|框架", "技术/后端"),
-    ("vue|react|angular|css|html|前端|组件|界面", "技术/前端"),
-    ("ai|gpt|llm|模型|机器学习|深度学习|神经网络|transformer", "技术/AI"),
-    ("设计|ui|ux|交互|体验|原型|figma", "设计"),
-    ("产品|需求|用户|功能|迭代|mvp", "产品"),
-    ("阅读|书籍|读书|文章|书评", "阅读"),
 ];
 
 pub struct FallbackProvider;
@@ -42,18 +33,52 @@ impl FallbackProvider {
         let clean_text = safe_truncate(text, 10000);
         let summary = generate_rule_summary(clean_text);
         let tags = extract_keywords(clean_text, 10);
-        let category = classify_by_keywords(clean_text);
 
         Ok(serde_json::json!({
             "summary": summary,
             "tags": tags,
-            "category": category,
         }))
+    }
+
+    pub async fn process_content(&self, text: &str, mode: &str, _search_context: Option<&str>) -> AppResult<serde_json::Value> {
+        // SECURITY FIX: Sanitize input to prevent any potential issues
+        let sanitized_text = sanitize_input(text);
+
+        // TRUNCATION FIX: Track if content was truncated
+        let (clean_text, was_truncated) = safe_truncate_with_info(&sanitized_text, 10000);
+
+        let mut result = match mode {
+            "organize" => {
+                // 简单整理：按段落去空行、添加基本结构
+                let paragraphs: Vec<&str> = clean_text
+                    .split("\n\n")
+                    .map(|p| p.trim())
+                    .filter(|p| !p.is_empty())
+                    .collect();
+                let organized = paragraphs.join("\n\n");
+                serde_json::json!({ "body_text": organized })
+            }
+            "expand" => {
+                // Fallback 无法扩展，返回原文
+                serde_json::json!({ "body_text": clean_text })
+            }
+            _ => return Err(crate::error::AppError::Ai(format!("Unknown mode: {}", mode))),
+        };
+
+        // Add truncation warning to response
+        if was_truncated {
+            if let Some(obj) = result.as_object_mut() {
+                obj.insert("truncated".to_string(), serde_json::json!(true));
+                obj.insert("warning".to_string(), serde_json::json!("内容已截断至 10000 字节"));
+            }
+        }
+
+        Ok(result)
     }
 }
 
 fn extract_keywords(text: &str, top_n: usize) -> Vec<String> {
-    let re = regex::Regex::new(r"[^\w\u4e00-\u9fff]").unwrap();
+    let re = regex::Regex::new(r"[^\w一-鿿]").unwrap();
     let cleaned = re.replace_all(text, " ");
     let words: Vec<&str> = cleaned
         .split_whitespace()
@@ -87,15 +112,4 @@ fn generate_rule_summary(text: &str) -> String {
     let mut result: String = chars.into_iter().collect();
     result.push_str("...");
     result
-}
-
-fn classify_by_keywords(text: &str) -> Option<String> {
-    let lower = text.to_lowercase();
-    for (pattern, category) in CATEGORY_RULES {
-        let re = regex::Regex::new(pattern).ok()?;
-        if re.is_match(&lower) {
-            return Some(category.to_string());
-        }
-    }
-    None
 }

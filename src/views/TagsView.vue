@@ -1,7 +1,7 @@
 <template>
   <div class="tags-view">
     <div class="page-header">
-      <h2>标签管理</h2>
+      <h2>智识图谱</h2>
       <button class="btn-primary" @click="showAdd = true">＋ 新建标签</button>
     </div>
 

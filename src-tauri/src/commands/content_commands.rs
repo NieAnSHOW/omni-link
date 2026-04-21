@@ -5,7 +5,7 @@ use crate::config::ConfigState;
 use crate::db::DbState;
 use crate::error::{AppError, AppResult};
 use crate::models::{AiResultParsed, ContentParsed, LinkDetail, UpdateContentInput};
-use crate::repositories::{ai_result_repo, category_repo, content_repo, link_repo, tag_repo};
+use crate::repositories::{ai_result_repo, content_repo, link_repo, tag_repo};
 
 #[tauri::command]
 pub async fn get_link_detail(state: State<'_, DbState>, id: i64) -> AppResult<LinkDetail> {
@@ -39,7 +39,6 @@ pub async fn get_link_detail(state: State<'_, DbState>, id: i64) -> AppResult<Li
                 AiResultParsed {
                     summary: r.summary.unwrap_or_default(),
                     tags,
-                    classification: r.classification,
                     provider: r.provider,
                 }
             })
@@ -54,11 +53,11 @@ pub async fn analyze_content_cmd(
     config_state: State<'_, ConfigState>,
     content_id: i64,
 ) -> AppResult<serde_json::Value> {
-    let (body_text, title, link_id) = {
+    let (body_text, title) = {
         let conn = state.0.lock().unwrap();
         let content = content_repo::get_content_by_id(&conn, content_id)?
             .ok_or_else(|| AppError::NotFound("Content not found".into()))?;
-        (content.body_text.unwrap_or_default(), content.title, content.link_id)
+        (content.body_text.unwrap_or_default(), content.title)
     };
 
     let config = config_state.0.lock().unwrap().clone();
@@ -69,7 +68,6 @@ pub async fn analyze_content_cmd(
         .as_array()
         .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
         .unwrap_or_default();
-    let classification = result["category"].as_str().map(String::from);
 
     let conn = state.0.lock().unwrap();
 
@@ -79,7 +77,6 @@ pub async fn analyze_content_cmd(
         content_id,
         Some(&summary),
         &tags,
-        classification.as_deref(),
         Some(&config.ai.provider),
     )?;
 
@@ -96,13 +93,6 @@ pub async fn analyze_content_cmd(
     }
     tag_repo::set_content_tags(&conn, content_id, &tag_ids)?;
 
-    // 分类自动推断
-    if let Some(ref cat_path) = classification {
-        if let Some(cat_id) = category_repo::find_or_create_by_path(&conn, cat_path)? {
-            let _ = link_repo::update_link_category(&conn, link_id, Some(cat_id));
-        }
-    }
-
     Ok(result)
 }
 
@@ -116,5 +106,49 @@ pub async fn update_content_cmd(state: State<'_, DbState>, input: UpdateContentI
         input.body_text.as_deref(),
         input.body_html.as_deref(),
     )?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn ai_process_content_cmd(
+    state: State<'_, DbState>,
+    config_state: State<'_, ConfigState>,
+    content_id: i64,
+    mode: String,
+) -> AppResult<bool> {
+    let (body_text, title) = {
+        let conn = state.0.lock().unwrap();
+        let content = content_repo::get_content_by_id(&conn, content_id)?
+            .ok_or_else(|| AppError::NotFound("Content not found".into()))?;
+        (content.body_text.unwrap_or_default(), content.title)
+    };
+
+    let config = config_state.0.lock().unwrap().clone();
+
+    let result = match mode.as_str() {
+        "organize" => ai_service::organize_content(&config.ai, &body_text).await?,
+        "expand" => ai_service::expand_content(&config.ai, &body_text, title.as_deref()).await?,
+        "both" => {
+            let organized = ai_service::organize_content(&config.ai, &body_text).await?;
+            let organized_text = organized["body_text"].as_str().unwrap_or(&body_text).to_string();
+            ai_service::expand_content(&config.ai, &organized_text, title.as_deref()).await?
+        }
+        _ => return Err(AppError::Ai(format!("Unknown mode: {}", mode))),
+    };
+
+    let new_body_text = result["body_text"].as_str().unwrap_or("").to_string();
+    if new_body_text.is_empty() {
+        return Ok(false);
+    }
+
+    let conn = state.0.lock().unwrap();
+    content_repo::update_content(
+        &conn,
+        content_id,
+        None,
+        Some(&new_body_text),
+        None,
+    )?;
+
     Ok(true)
 }

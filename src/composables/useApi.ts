@@ -1,14 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Link, LinkDetail, TagWithCount, CategoryNode } from '../types/index';
+import type { Link, LinkDetail, TagWithCount } from '../types/index';
 
 export function useApi() {
   return {
-    getLinks: (params?: { limit?: number; offset?: number; status?: string; category_id?: number }) =>
+    getLinks: (params?: { limit?: number; offset?: number; status?: string }) =>
       invoke<{ links: Link[]; total: number }>('get_links', {
         limit: params?.limit ?? null,
         offset: params?.offset ?? null,
         status: params?.status ?? null,
-        category_id: params?.category_id ?? null,
       }),
 
     addLink: (url: string) =>
@@ -68,22 +67,12 @@ export function useApi() {
     updateContentTags: (contentId: number, tagIds: number[]) =>
       invoke<void>('update_content_tags', { contentId, tagIds }),
 
-    // Categories
-    getCategories: () =>
-      invoke<CategoryNode[]>('get_categories'),
-
-    upsertCategory: (params: { id?: number; name: string; parentId?: number | null }) =>
-      invoke<CategoryNode>('upsert_category', { input: { id: params.id ?? null, name: params.name, parent_id: params.parentId ?? null } }),
-
-    deleteCategory: (id: number) =>
-      invoke<boolean>('delete_category', { id }),
-
-    updateLinkCategory: (linkId: number, categoryId: number | null) =>
-      invoke<void>('update_link_category', { linkId, categoryId }),
-
     updateContent: (id: number, title: string | null, bodyText: string, bodyHtml: string) =>
       invoke<boolean>('update_content_cmd', {
         input: { id, title, body_text: bodyText, body_html: bodyHtml },
       }),
+
+    aiProcessContent: (contentId: number, mode: string) =>
+      invoke<{ success: boolean }>('ai_process_content_cmd', { contentId, mode }),
   };
 }

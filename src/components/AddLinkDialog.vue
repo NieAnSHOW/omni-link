@@ -1,10 +1,10 @@
 <template>
   <div v-if="visible" class="dialog-overlay" @click.self="$emit('close')">
     <div class="dialog">
-      <h3>添加链接</h3>
+      <h3>添加知识</h3>
       <textarea
         v-model="input"
-        placeholder="粘贴一个或多个链接（每行一个）"
+        placeholder="粘贴一个或多个网址（每行一个）"
         rows="4"
         autofocus
       />

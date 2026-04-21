@@ -1,8 +1,8 @@
 <template>
   <div class="links-view">
     <div class="page-header">
-      <h2>我的链接</h2>
-      <button class="btn-primary" @click="showDialog = true">+ 添加链接</button>
+      <h2>我的知识库</h2>
+      <button class="btn-primary" @click="showDialog = true">+ 添加知识</button>
     </div>
 
     <div class="filters">
@@ -13,18 +13,22 @@
       </button>
     </div>
 
-    <div v-if="loading" class="link-list">
-      <LinkCardSkeleton v-for="i in 5" :key="i" />
+    <div v-if="loading" class="masonry">
+      <div v-for="col in columnCount" :key="col" class="masonry-col">
+        <LinkCardSkeleton v-for="i in skeletonRows(col)" :key="i" />
+      </div>
     </div>
-    <div v-else-if="links.length === 0" class="empty-state">还没有链接，点击上方按钮添加</div>
-    <div v-else class="link-list">
-      <LinkCard
-        v-for="link in links"
-        :key="link.id"
-        :link="link"
-        @click="goToDetail(link.id)"
-        @delete="handleDelete"
-      />
+    <div v-else-if="links.length === 0" class="empty-state">还没有知识，点击上方按钮添加</div>
+    <div v-else class="masonry">
+      <div v-for="(col, ci) in masonryColumns" :key="ci" class="masonry-col">
+        <LinkCard
+          v-for="link in col"
+          :key="link.id"
+          :link="link"
+          @click="goToDetail(link.id)"
+          @delete="handleDelete"
+        />
+      </div>
     </div>
 
     <AddLinkDialog
@@ -36,8 +40,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useLinksStore } from '../stores/links';
 import { useApi } from '../composables/useApi';
@@ -53,7 +57,33 @@ const api = useApi();
 const toast = useToast();
 const showDialog = ref(false);
 const activeFilter = ref<string>('');
-const route = useRoute();
+const contentWidth = ref(0);
+const columnCount = computed(() =>
+  Math.max(1, Math.min(5, Math.floor(contentWidth.value / 400))),
+);
+
+let resizeObs: ResizeObserver | undefined;
+onMounted(() => {
+  const el = document.querySelector('.main-content');
+  if (el) {
+    contentWidth.value = el.clientWidth;
+    resizeObs = new ResizeObserver(([e]) => { contentWidth.value = e.contentRect.width });
+    resizeObs.observe(el);
+  }
+});
+onUnmounted(() => resizeObs?.disconnect());
+
+function skeletonRows(col: number) {
+  const total = 5;
+  const perCol = Math.ceil(total / columnCount.value);
+  return col <= (total % columnCount.value || columnCount.value) ? perCol : perCol - 1;
+}
+
+const masonryColumns = computed(() => {
+  const cols: (typeof links.value)[] = Array.from({ length: columnCount.value }, () => []);
+  links.value.forEach((link, i) => cols[i % columnCount.value].push(link));
+  return cols;
+});
 
 const filters = [
   { label: '全部', value: '' },
@@ -65,13 +95,9 @@ const filters = [
 async function loadLinks() {
   store.loading = true;
   try {
-    const params: { limit: number; offset: number; status?: string; category_id?: number } = { limit: 20, offset: 0 };
+    const params: { limit: number; offset: number; status?: string } = { limit: 20, offset: 0 };
     if (activeFilter.value) {
       params.status = activeFilter.value;
-    }
-    const catId = route.query.category;
-    if (catId) {
-      params.category_id = Number(catId);
     }
     const res = await api.getLinks(params);
     store.links = res.links;
@@ -82,12 +108,8 @@ async function loadLinks() {
 }
 
 watch(
-  [() => route.query.category, activeFilter],
+  activeFilter,
   () => {
-    const catId = route.query.category;
-    if (catId) {
-      activeFilter.value = '';
-    }
     loadLinks();
   },
   { immediate: true },
@@ -104,7 +126,7 @@ function goToDetail(id: number) {
 async function handleAddLinks(urls: string[]) {
   try {
     await api.addLinks(urls);
-    toast.show(`成功添加 ${urls.length} 个链接`, 'success');
+    toast.show(`成功添加 ${urls.length} 条知识`, 'success');
     await loadLinks();
   } catch (e) {
     toast.show('添加失败', 'error');
@@ -114,7 +136,7 @@ async function handleAddLinks(urls: string[]) {
 async function handleDelete(id: number) {
   try {
     await api.deleteLink(id);
-    toast.show('链接已删除', 'success');
+    toast.show('知识已删除', 'success');
     await loadLinks();
   } catch (e) {
     toast.show('删除失败', 'error');
@@ -136,6 +158,17 @@ async function handleDelete(id: number) {
   border-radius: 6px; font-size: 13px; cursor: pointer; color: #64748b;
 }
 .filter-btn.active { background: #6366f1; color: white; border-color: #6366f1; }
-.link-list { display: flex; flex-direction: column; gap: 12px; }
+.masonry {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.masonry-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .empty-state { text-align: center; color: #94a3b8; padding: 40px; }
 </style>

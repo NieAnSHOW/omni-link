@@ -35,6 +35,7 @@ pub fn run() {
             commands::content_commands::get_link_detail,
             commands::content_commands::analyze_content_cmd,
             commands::content_commands::update_content_cmd,
+            commands::content_commands::ai_process_content_cmd,
             commands::settings_commands::get_settings,
             commands::settings_commands::get_ai_config,
             commands::settings_commands::update_ai_config,
@@ -42,10 +43,6 @@ pub fn run() {
             commands::tag_commands::create_tag,
             commands::tag_commands::delete_tag,
             commands::tag_commands::update_content_tags,
-            commands::category_commands::get_categories,
-            commands::category_commands::upsert_category,
-            commands::category_commands::delete_category,
-            commands::category_commands::update_link_category,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

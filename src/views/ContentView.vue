@@ -17,16 +17,15 @@
         <div class="top-btn">
           <h2>{{ detail.link.title || '未命名' }}</h2>
           <div class="actions">
-            <button v-if="detail.link.status === 'pending'" class="btn-primary" @click="parseLink" :disabled="parsing">
-              {{ parsing ? '解析中...' : '解析内容' }}
+            <button v-if="detail.link.status !== 'parsing'" class="btn-primary" @click="parseLink" :disabled="parsing">
+              {{ parsing ? '解析中...' : (detail.content ? '重新解析' : '解析内容') }}
             </button>
-            <button v-if="detail.content && detail.link.status !== 'parsing'" class="btn-secondary" @click="parseLink"
-              :disabled="parsing">
-              {{ parsing ? '重新解析中...' : '重新解析' }}
-            </button>
-            <button v-if="detail.content && !detail.ai" class="btn-primary" @click="analyzeContent"
+            <button v-if="detail.content" class="btn-secondary" @click="analyzeContent"
               :disabled="analyzing">
-              {{ analyzing ? '分析中...' : 'AI 分析' }}
+              {{ analyzing ? '摘要生成中...' : (detail.ai ? '重新生成摘要' : 'AI 摘要') }}
+            </button>
+            <button v-if="detail.content" class="btn-secondary" @click="showAiProcessModal = true">
+              AI 整理
             </button>
             <button v-if="detail.content && !isEditing" class="btn-secondary" @click="isEditing = true">
               编辑
@@ -36,15 +35,6 @@
         <div class="meta">
           <span class="platform-badge">{{ detail.link.platform || 'web' }}</span>
           <a :href="detail.link.url" target="_blank" class="original-link">查看原文 →</a>
-          <span v-if="categoryName && !editingCategory" class="category-badge clickable"
-            @click="editingCategory = true">{{ categoryName }} ✎</span>
-          <span v-if="!categoryName && !editingCategory" class="category-badge clickable add"
-            @click="editingCategory = true">+ 设置分类</span>
-          <select v-if="editingCategory" class="category-select" :value="selectedCategoryId ?? ''"
-            @change="handleCategoryChange" @blur="editingCategory = false">
-            <option value="">无分类</option>
-            <option v-for="cat in flatCategories" :key="cat.id" :value="cat.id">{{ cat.prefix }}{{ cat.name }}</option>
-          </select>
         </div>
       </div>
 
@@ -55,7 +45,9 @@
           @update:model-value="handleTagsUpdate" />
       </div>
 
-
+      <div v-if="autoAnalyzing" class="auto-analyzing-hint">
+        正在生成 AI 摘要...
+      </div>
 
       <ContentEditor v-if="isEditing"
         :initial-title="detail.content?.title ?? null"
@@ -75,17 +67,43 @@
         </div>
       </template>
     </template>
+
+    <!-- AI 整理选项弹窗 -->
+    <div v-if="showAiProcessModal" class="modal-overlay" @click.self="closeAiProcessModal" @keydown.escape="closeAiProcessModal">
+      <div class="modal-content" role="dialog" aria-modal="true">
+        <div class="modal-header">
+          <h3>选择 AI 处理方式</h3>
+          <button class="modal-close" @click="closeAiProcessModal" aria-label="关闭">×</button>
+        </div>
+        <button class="modal-option" @click="handleAiProcess('organize')" aria-label="AI 整理内容">
+          <strong>AI 整理内容</strong>
+          <span>清理排版、去除冗余、补全结构</span>
+        </button>
+        <button class="modal-option" @click="handleAiProcess('expand')" aria-label="AI 扩展内容">
+          <strong>AI 扩展内容</strong>
+          <span>基于当前内容搜索并扩展补充</span>
+        </button>
+        <button class="modal-option" @click="handleAiProcess('both')" aria-label="整理并扩展">
+          <strong>整理并扩展</strong>
+          <span>先整理后扩展，完整处理</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- AI 处理中提示 -->
+    <div v-if="aiProcessing" class="ai-processing-hint">
+      {{ aiProcessingText }}
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { marked } from 'marked';
 import { useApi } from '../composables/useApi';
 import { useToast } from '../composables/useToast';
 import { useTagsStore } from '../stores/tags';
-import { useCategoriesStore } from '../stores/categories';
 import TagInput from '../components/TagInput.vue';
 import ContentEditor from '../components/ContentEditor.vue';
 import type { LinkDetail, TagWithCount } from '../types/index';
@@ -99,23 +117,58 @@ const loading = ref(true);
 const parsing = ref(false);
 const analyzing = ref(false);
 const tagsStore = useTagsStore();
-const categoriesStore = useCategoriesStore();
 const contentTags = ref<TagWithCount[]>([]);
-const editingCategory = ref(false);
 const isEditing = ref(false);
-const selectedCategoryId = ref<number | null>(null);
+const autoAnalyzing = ref(false);
+const showAiProcessModal = ref(false);
+const aiProcessing = ref(false);
+const aiProcessingText = ref('');
+
+const modeLabels: Record<string, string> = {
+  organize: 'AI 整理中...',
+  expand: 'AI 扩展中...',
+  both: 'AI 整理并扩展中...',
+};
+
+async function handleAiProcess(mode: string) {
+  if (!detail.value?.content || aiProcessing.value) return;
+  showAiProcessModal.value = false;
+  aiProcessingText.value = modeLabels[mode] || '处理中...';
+  aiProcessing.value = true;
+  try {
+    await api.aiProcessContent(detail.value.content.id, mode);
+    toast.show('AI 处理完成', 'success');
+    await fetchDetail();
+  } catch (e: any) {
+    toast.show(e?.message || 'AI 处理失败', 'error');
+  } finally {
+    aiProcessing.value = false;
+  }
+}
+
+function closeAiProcessModal() {
+  showAiProcessModal.value = false;
+}
+
+// Focus management for modal
+watch(showAiProcessModal, (isOpen) => {
+  if (isOpen) {
+    nextTick(() => {
+      const firstOption = document.querySelector('.modal-option') as HTMLElement;
+      firstOption?.focus();
+    });
+  }
+});
 
 onMounted(async () => {
   await fetchDetail();
   await tagsStore.fetchTags();
-  await categoriesStore.fetchCategories();
 });
 
 async function fetchDetail() {
   loading.value = true;
   try {
     detail.value = await api.getLinkDetail(Number(props.id));
-    selectedCategoryId.value = detail.value?.link.category_id ?? null;
     console.log('[ContentView] fetchDetail:', {
       linkId: detail.value?.link.id,
       status: detail.value?.link.status,
@@ -148,10 +201,26 @@ async function parseLink() {
     const result = await api.parseLink(Number(props.id));
     if (result.error) {
       toast.show(result.error, 'error');
+      await fetchDetail();
     } else {
       toast.show('解析完成', 'success');
+      // 自动触发 AI 摘要
+      await fetchDetail();
+      if (detail.value?.content) {
+        autoAnalyzing.value = true;
+        try {
+          await api.analyzeContent(detail.value.content.id);
+          toast.show('AI 摘要完成', 'success');
+          await fetchDetail();
+          await tagsStore.fetchTags();
+        } catch (e) {
+          console.error(e);
+          toast.show('AI 摘要失败', 'error');
+        } finally {
+          autoAnalyzing.value = false;
+        }
+      }
     }
-    await fetchDetail();
   } catch (e) {
     toast.show('解析失败', 'error');
   } finally {
@@ -161,14 +230,15 @@ async function parseLink() {
 
 async function analyzeContent() {
   if (!detail.value?.content) return;
+  if (analyzing.value || autoAnalyzing.value) return;
   analyzing.value = true;
   try {
     await api.analyzeContent(detail.value.content.id);
-    toast.show('AI 分析完成', 'success');
+    toast.show('AI 摘要完成', 'success');
     await fetchDetail();
     await tagsStore.fetchTags();
   } catch (e) {
-    toast.show('AI 分析失败', 'error');
+    toast.show('AI 摘要失败', 'error');
   } finally {
     analyzing.value = false;
   }
@@ -179,44 +249,6 @@ async function handleTagsUpdate(newTags: TagWithCount[]) {
   contentTags.value = newTags;
   const tagIds = newTags.map(t => t.id).filter(id => id > 0);
   await api.updateContentTags(detail.value.content.id, tagIds);
-}
-
-const categoryName = computed(() => {
-  if (!detail.value?.link.category_id) return null;
-  const find = (nodes: any[]): string | null => {
-    for (const n of nodes) {
-      if (n.id === detail.value!.link.category_id) return n.name;
-      const found = find(n.children);
-      if (found) return found;
-    }
-    return null;
-  };
-  return find(categoriesStore.categories);
-});
-
-const flatCategories = computed(() => {
-  const result: { id: number; name: string; prefix: string }[] = [];
-  function walk(nodes: any[], depth: number) {
-    for (const n of nodes) {
-      result.push({ id: n.id, name: n.name, prefix: '\u00A0\u00A0'.repeat(depth) });
-      walk(n.children, depth + 1);
-    }
-  }
-  walk(categoriesStore.categories, 0);
-  return result;
-});
-
-async function handleCategoryChange(e: Event) {
-  const value = (e.target as HTMLSelectElement).value;
-  const categoryId = value ? Number(value) : null;
-  try {
-    await api.updateLinkCategory(Number(props.id), categoryId);
-    toast.show('分类已更新', 'success');
-    editingCategory.value = false;
-    await fetchDetail();
-  } catch (e) {
-    toast.show('更新分类失败', 'error');
-  }
 }
 
 const savingContent = ref(false);
@@ -324,7 +356,7 @@ const renderedMarkdown = computed(() => {
   display: flex;
   gap: 8px;
   width: 100%;
-  max-width: 255px;
+  max-width: 370px;
   justify-content: end;
 }
 
@@ -479,30 +511,111 @@ const renderedMarkdown = computed(() => {
   border-radius: 4px;
 }
 
-.category-badge {
-  font-size: 11px;
+.auto-analyzing-hint {
+  text-align: center;
+  padding: 12px;
+  color: #6366f1;
+  font-size: 14px;
   background: #f0f0ff;
-  padding: 2px 8px;
-  border-radius: 4px;
-  color: #6366f1;
+  border-radius: 8px;
+  margin-bottom: 16px;
 }
 
-.category-badge.clickable {
-  cursor: pointer;
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
 }
 
-.category-badge.add {
-  color: #94a3b8;
-  background: #f1f5f9;
-}
-
-.category-select {
-  font-size: 12px;
-  padding: 2px 6px;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-  color: #6366f1;
+.modal-content {
   background: white;
+  border-radius: 12px;
+  padding: 24px;
+  width: 360px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.modal-content h3 {
+  font-size: 16px;
+  margin: 0;
+  color: #1e293b;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #64748b;
   cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.modal-close:hover {
+  color: #1e293b;
+}
+
+.modal-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s;
+}
+
+.modal-option:hover {
+  border-color: #6366f1;
+}
+
+.modal-option:last-child {
+  margin-bottom: 0;
+}
+
+.modal-option strong {
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.modal-option span {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.ai-processing-hint {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #6366f1;
+  color: white;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 </style>
