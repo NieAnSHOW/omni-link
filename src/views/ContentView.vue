@@ -69,18 +69,21 @@
     </template>
 
     <!-- AI 整理选项弹窗 -->
-    <div v-if="showAiProcessModal" class="modal-overlay" @click.self="showAiProcessModal = false">
+    <div v-if="showAiProcessModal" class="modal-overlay" @click.self="closeAiProcessModal" @keydown.escape="closeAiProcessModal">
       <div class="modal-content">
-        <h3>选择 AI 处理方式</h3>
-        <button class="modal-option" @click="handleAiProcess('organize')">
+        <div class="modal-header">
+          <h3>选择 AI 处理方式</h3>
+          <button class="modal-close" @click="closeAiProcessModal" aria-label="关闭">×</button>
+        </div>
+        <button class="modal-option" @click="handleAiProcess('organize')" @keydown.enter="handleAiProcess('organize')" role="button" aria-label="AI 整理内容">
           <strong>AI 整理内容</strong>
           <span>清理排版、去除冗余、补全结构</span>
         </button>
-        <button class="modal-option" @click="handleAiProcess('expand')">
+        <button class="modal-option" @click="handleAiProcess('expand')" @keydown.enter="handleAiProcess('expand')" role="button" aria-label="AI 扩展内容">
           <strong>AI 扩展内容</strong>
           <span>基于当前内容搜索并扩展补充</span>
         </button>
-        <button class="modal-option" @click="handleAiProcess('both')">
+        <button class="modal-option" @click="handleAiProcess('both')" @keydown.enter="handleAiProcess('both')" role="button" aria-label="整理并扩展">
           <strong>整理并扩展</strong>
           <span>先整理后扩展，完整处理</span>
         </button>
@@ -128,7 +131,7 @@ const modeLabels: Record<string, string> = {
 };
 
 async function handleAiProcess(mode: string) {
-  if (!detail.value?.content) return;
+  if (!detail.value?.content || aiProcessing.value) return;
   showAiProcessModal.value = false;
   aiProcessingText.value = modeLabels[mode] || '处理中...';
   aiProcessing.value = true;
@@ -136,11 +139,15 @@ async function handleAiProcess(mode: string) {
     await api.aiProcessContent(detail.value.content.id, mode);
     toast.show('AI 处理完成', 'success');
     await fetchDetail();
-  } catch {
-    toast.show('AI 处理失败', 'error');
+  } catch (e: any) {
+    toast.show(e?.message || 'AI 处理失败', 'error');
   } finally {
     aiProcessing.value = false;
   }
+}
+
+function closeAiProcessModal() {
+  showAiProcessModal.value = false;
 }
 
 onMounted(async () => {
@@ -522,9 +529,36 @@ const renderedMarkdown = computed(() => {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 }
 
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
 .modal-content h3 {
   font-size: 16px;
-  margin-bottom: 16px;
+  margin: 0;
+  color: #1e293b;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.modal-close:hover {
   color: #1e293b;
 }
 
