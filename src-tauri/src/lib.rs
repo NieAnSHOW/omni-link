@@ -33,7 +33,7 @@ pub fn run() {
                 eprintln!("Failed to initialize logger: {}", e);
             }
 
-            app.manage(DbState(std::sync::Mutex::new(conn)));
+            app.manage(DbState(std::sync::Arc::new(std::sync::Mutex::new(conn))));
             app.manage(ConfigState(std::sync::Mutex::new(app_config)));
 
             tracing::info!("OmniLink application setup completed");

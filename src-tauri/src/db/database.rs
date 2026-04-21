@@ -1,10 +1,10 @@
 use rusqlite::Connection;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use crate::config::data_dir;
 use crate::error::AppResult;
 
-pub struct DbState(pub Mutex<Connection>);
+pub struct DbState(pub Arc<Mutex<Connection>>);
 
 pub fn init_connection() -> AppResult<Connection> {
     std::fs::create_dir_all(data_dir())?;
