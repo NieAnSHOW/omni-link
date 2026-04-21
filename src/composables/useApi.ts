@@ -74,5 +74,8 @@ export function useApi() {
 
     aiProcessContent: (contentId: number, mode: string) =>
       invoke<{ success: boolean }>('ai_process_content_cmd', { contentId, mode }),
+
+    startAiProcess: (linkId: number, mode: string) =>
+      invoke<void>('start_ai_process', { linkId, mode }),
   };
 }

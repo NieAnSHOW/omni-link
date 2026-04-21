@@ -69,7 +69,7 @@ function handleEnter() {
       emit('update:modelValue', [...props.modelValue, {
         id: -Date.now(),
         name,
-        color: '#6366f1',
+        color: '#8b9dc3',
         tag_type: 'manual' as const,
         content_count: 0,
         created_at: new Date().toISOString(),

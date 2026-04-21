@@ -45,6 +45,7 @@ import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useLinksStore } from '../stores/links';
 import { useApi } from '../composables/useApi';
+import { listen } from '@tauri-apps/api/event';
 import { useToast } from '../composables/useToast';
 import LinkCard from '../components/LinkCard.vue';
 import LinkCardSkeleton from '../components/LinkCardSkeleton.vue';
@@ -63,13 +64,24 @@ const columnCount = computed(() =>
 );
 
 let resizeObs: ResizeObserver | undefined;
-onMounted(() => {
+onMounted(async () => {
   const el = document.querySelector('.main-content');
   if (el) {
     contentWidth.value = el.clientWidth;
     resizeObs = new ResizeObserver(([e]) => { contentWidth.value = e.contentRect.width });
     resizeObs.observe(el);
   }
+
+  // 监听 AI 处理完成事件
+  await listen('ai-process-complete', async () => {
+    toast.show('AI 整理完成', 'success');
+    await loadLinks();
+  });
+
+  await listen('ai-process-failed', async () => {
+    toast.show('AI 整理失败', 'error');
+    await loadLinks();
+  });
 });
 onUnmounted(() => resizeObs?.disconnect());
 

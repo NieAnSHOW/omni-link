@@ -123,7 +123,20 @@ fn row_to_link(row: &rusqlite::Row) -> rusqlite::Result<Link> {
         platform: row.get("platform")?,
         source: row.get("source")?,
         status: row.get("status")?,
+        ai_processing_status: row.get("ai_processing_status")?,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
     })
+}
+
+pub fn update_ai_processing_status(
+    conn: &Connection,
+    link_id: i64,
+    status: &str,
+) -> AppResult<()> {
+    conn.execute(
+        "UPDATE links SET ai_processing_status = ?1, updated_at = datetime('now') WHERE id = ?2",
+        params![status, link_id],
+    )?;
+    Ok(())
 }

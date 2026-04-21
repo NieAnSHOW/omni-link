@@ -1,5 +1,5 @@
 <template>
-  <div class="link-card" @click="$emit('click')">
+  <div class="link-card" :class="{ 'processing': link.ai_processing_status !== 'idle' }" @click="$emit('click')">
     <div class="link-header">
       <span class="platform-badge">{{ link.platform || 'web' }}</span>
       <span class="status" :class="link.status">{{ statusText }}</span>
@@ -21,7 +21,20 @@ const props = defineProps<{ link: Link }>();
 defineEmits<{ click: []; delete: [id: number] }>();
 
 const statusText = computed(() => {
-  const map: Record<string, string> = { pending: '待解析', parsing: '解析中', parsed: '已解析', failed: '失败' };
+  if (props.link.ai_processing_status !== 'idle') {
+    const aiStatusMap: Record<string, string> = {
+      organizing: 'AI 整理中',
+      expanding: 'AI 扩展中',
+      both: 'AI 整理并扩展中'
+    };
+    return aiStatusMap[props.link.ai_processing_status] || 'AI 处理中';
+  }
+  const map: Record<string, string> = {
+    pending: '待解析',
+    parsing: '解析中',
+    parsed: '已解析',
+    failed: '失败'
+  };
   return map[props.link.status] || props.link.status;
 });
 
@@ -63,4 +76,11 @@ function formatDate(dateStr: string) {
   color: #94a3b8; font-size: 14px; padding: 4px;
 }
 .btn-icon:hover { color: #ef4444; }
+.link-card.processing {
+  pointer-events: none;
+  opacity: 0.6;
+}
+.link-card.processing .status {
+  color: #6366f1;
+}
 </style>
