@@ -46,7 +46,6 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
             content_id INTEGER NOT NULL UNIQUE REFERENCES contents(id) ON DELETE CASCADE,
             summary TEXT,
             tags TEXT DEFAULT '[]',
-            classification TEXT,
             provider TEXT,
             created_at TEXT DEFAULT (datetime('now'))
         );
@@ -95,6 +94,9 @@ fn migrate(conn: &Connection) -> AppResult<()> {
     // Drop categories table and category_id column from links
     drop_categories(conn)?;
 
+    // Drop classification column from ai_results
+    drop_classification(conn)?;
+
     Ok(())
 }
 
@@ -128,5 +130,29 @@ fn drop_categories(conn: &Connection) -> AppResult<()> {
         )?;
     }
 
+    Ok(())
+}
+
+fn drop_classification(conn: &Connection) -> AppResult<()> {
+    let has_classification: bool = conn
+        .prepare("SELECT classification FROM ai_results LIMIT 0")
+        .is_ok();
+    if has_classification {
+        conn.execute_batch(
+            "CREATE TABLE ai_results_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content_id INTEGER NOT NULL UNIQUE,
+                summary TEXT,
+                tags TEXT DEFAULT '[]',
+                provider TEXT,
+                created_at TEXT DEFAULT (datetime('now')),
+                FOREIGN KEY (content_id) REFERENCES contents(id)
+            );
+            INSERT INTO ai_results_new (id, content_id, summary, tags, provider, created_at)
+                SELECT id, content_id, summary, tags, provider, created_at FROM ai_results;
+            DROP TABLE ai_results;
+            ALTER TABLE ai_results_new RENAME TO ai_results;",
+        )?;
+    }
     Ok(())
 }

@@ -14,15 +14,6 @@ const STOP_WORDS: &[&str] = &[
     "to", "in", "on", "with", "for", "of", "not", "this", "that",
 ];
 
-const CATEGORY_RULES: &[(&str, &str)] = &[
-    ("rust|golang|python|java|typescript|javascript|编程|开发|api|框架", "技术/后端"),
-    ("vue|react|angular|css|html|前端|组件|界面", "技术/前端"),
-    ("ai|gpt|llm|模型|机器学习|深度学习|神经网络|transformer", "技术/AI"),
-    ("设计|ui|ux|交互|体验|原型|figma", "设计"),
-    ("产品|需求|用户|功能|迭代|mvp", "产品"),
-    ("阅读|书籍|读书|文章|书评", "阅读"),
-];
-
 pub struct FallbackProvider;
 
 impl FallbackProvider {
@@ -42,18 +33,16 @@ impl FallbackProvider {
         let clean_text = safe_truncate(text, 10000);
         let summary = generate_rule_summary(clean_text);
         let tags = extract_keywords(clean_text, 10);
-        let category = classify_by_keywords(clean_text);
 
         Ok(serde_json::json!({
             "summary": summary,
             "tags": tags,
-            "category": category,
         }))
     }
 }
 
 fn extract_keywords(text: &str, top_n: usize) -> Vec<String> {
-    let re = regex::Regex::new(r"[^\w\u4e00-\u9fff]").unwrap();
+    let re = regex::Regex::new(r"[^\w一-鿿]").unwrap();
     let cleaned = re.replace_all(text, " ");
     let words: Vec<&str> = cleaned
         .split_whitespace()
@@ -87,15 +76,4 @@ fn generate_rule_summary(text: &str) -> String {
     let mut result: String = chars.into_iter().collect();
     result.push_str("...");
     result
-}
-
-fn classify_by_keywords(text: &str) -> Option<String> {
-    let lower = text.to_lowercase();
-    for (pattern, category) in CATEGORY_RULES {
-        let re = regex::Regex::new(pattern).ok()?;
-        if re.is_match(&lower) {
-            return Some(category.to_string());
-        }
-    }
-    None
 }

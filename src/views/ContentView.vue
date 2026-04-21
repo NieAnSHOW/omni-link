@@ -17,14 +17,10 @@
         <div class="top-btn">
           <h2>{{ detail.link.title || '未命名' }}</h2>
           <div class="actions">
-            <button v-if="detail.link.status === 'pending'" class="btn-primary" @click="parseLink" :disabled="parsing">
-              {{ parsing ? '解析中...' : '解析内容' }}
+            <button v-if="detail.link.status !== 'parsing'" class="btn-primary" @click="parseLink" :disabled="parsing">
+              {{ parsing ? '解析中...' : (detail.content ? '重新解析' : '解析内容') }}
             </button>
-            <button v-if="detail.content && detail.link.status !== 'parsing'" class="btn-secondary" @click="parseLink"
-              :disabled="parsing">
-              {{ parsing ? '重新解析中...' : '重新解析' }}
-            </button>
-            <button v-if="detail.content && !detail.ai" class="btn-primary" @click="analyzeContent"
+            <button v-if="detail.content && !detail.ai" class="btn-secondary" @click="analyzeContent"
               :disabled="analyzing">
               {{ analyzing ? '分析中...' : 'AI 分析' }}
             </button>

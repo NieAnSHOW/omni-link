@@ -44,7 +44,6 @@ pub struct AiResult {
     pub content_id: i64,
     pub summary: Option<String>,
     pub tags: serde_json::Value,
-    pub classification: Option<String>,
     pub provider: Option<String>,
     pub created_at: String,
 }
@@ -53,7 +52,6 @@ pub struct AiResult {
 pub struct AiResultParsed {
     pub summary: String,
     pub tags: Vec<String>,
-    pub classification: Option<String>,
     pub provider: Option<String>,
 }
 

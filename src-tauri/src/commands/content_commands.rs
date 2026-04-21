@@ -39,7 +39,6 @@ pub async fn get_link_detail(state: State<'_, DbState>, id: i64) -> AppResult<Li
                 AiResultParsed {
                     summary: r.summary.unwrap_or_default(),
                     tags,
-                    classification: r.classification,
                     provider: r.provider,
                 }
             })
@@ -69,7 +68,6 @@ pub async fn analyze_content_cmd(
         .as_array()
         .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
         .unwrap_or_default();
-    let classification = result["category"].as_str().map(String::from);
 
     let conn = state.0.lock().unwrap();
 
@@ -79,7 +77,6 @@ pub async fn analyze_content_cmd(
         content_id,
         Some(&summary),
         &tags,
-        classification.as_deref(),
         Some(&config.ai.provider),
     )?;
 

@@ -24,7 +24,6 @@ export interface Content {
 export interface AiResult {
   summary: string | null;
   tags: string[];
-  classification: string | null;
   provider: string | null;
 }
 
