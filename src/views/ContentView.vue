@@ -356,7 +356,7 @@ const renderedMarkdown = computed(() => {
   display: flex;
   gap: 8px;
   width: 100%;
-  max-width: 255px;
+  max-width: 370px;
   justify-content: end;
 }
 

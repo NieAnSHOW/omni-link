@@ -36,7 +36,6 @@ function formatDate(dateStr: string) {
   padding: 16px; cursor: pointer;
   transition: box-shadow 0.15s;
   break-inside: avoid;
-  margin-bottom: 12px;
 }
 .link-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
 .link-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
