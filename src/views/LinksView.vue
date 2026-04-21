@@ -1,8 +1,8 @@
 <template>
   <div class="links-view">
     <div class="page-header">
-      <h2>我的链接</h2>
-      <button class="btn-primary" @click="showDialog = true">+ 添加链接</button>
+      <h2>我的知识库</h2>
+      <button class="btn-primary" @click="showDialog = true">+ 添加知识</button>
     </div>
 
     <div class="filters">
@@ -13,16 +13,22 @@
       </button>
     </div>
 
-    <div v-if="loading" class="empty-state">加载中...</div>
-    <div v-else-if="links.length === 0" class="empty-state">还没有链接，点击上方按钮添加</div>
-    <div v-else class="link-list">
-      <LinkCard
-        v-for="link in links"
-        :key="link.id"
-        :link="link"
-        @click="goToDetail(link.id)"
-        @delete="handleDelete"
-      />
+    <div v-if="loading" class="masonry">
+      <div v-for="col in columnCount" :key="col" class="masonry-col">
+        <LinkCardSkeleton v-for="i in skeletonRows(col)" :key="i" />
+      </div>
+    </div>
+    <div v-else-if="links.length === 0" class="empty-state">还没有知识，点击上方按钮添加</div>
+    <div v-else class="masonry">
+      <div v-for="(col, ci) in masonryColumns" :key="ci" class="masonry-col">
+        <LinkCard
+          v-for="link in col"
+          :key="link.id"
+          :link="link"
+          @click="goToDetail(link.id)"
+          @delete="handleDelete"
+        />
+      </div>
     </div>
 
     <AddLinkDialog
@@ -34,19 +40,50 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia';
 import { useLinksStore } from '../stores/links';
 import { useApi } from '../composables/useApi';
+import { useToast } from '../composables/useToast';
 import LinkCard from '../components/LinkCard.vue';
+import LinkCardSkeleton from '../components/LinkCardSkeleton.vue';
 import AddLinkDialog from '../components/AddLinkDialog.vue';
 
 const router = useRouter();
 const store = useLinksStore();
+const { links, loading } = storeToRefs(store);
 const api = useApi();
+const toast = useToast();
 const showDialog = ref(false);
 const activeFilter = ref<string>('');
-const { links, loading } = store;
+const contentWidth = ref(0);
+const columnCount = computed(() =>
+  Math.max(1, Math.min(5, Math.floor(contentWidth.value / 400))),
+);
+
+let resizeObs: ResizeObserver | undefined;
+onMounted(() => {
+  const el = document.querySelector('.main-content');
+  if (el) {
+    contentWidth.value = el.clientWidth;
+    resizeObs = new ResizeObserver(([e]) => { contentWidth.value = e.contentRect.width });
+    resizeObs.observe(el);
+  }
+});
+onUnmounted(() => resizeObs?.disconnect());
+
+function skeletonRows(col: number) {
+  const total = 5;
+  const perCol = Math.ceil(total / columnCount.value);
+  return col <= (total % columnCount.value || columnCount.value) ? perCol : perCol - 1;
+}
+
+const masonryColumns = computed(() => {
+  const cols: (typeof links.value)[] = Array.from({ length: columnCount.value }, () => []);
+  links.value.forEach((link, i) => cols[i % columnCount.value].push(link));
+  return cols;
+});
 
 const filters = [
   { label: '全部', value: '' },
@@ -55,17 +92,31 @@ const filters = [
   { label: '失败', value: 'failed' },
 ];
 
-onMounted(() => store.fetchLinks());
-
-async function setFilter(status: string) {
-  activeFilter.value = status;
-  if (status) {
-    const res = await api.getLinks({ status });
+async function loadLinks() {
+  store.loading = true;
+  try {
+    const params: { limit: number; offset: number; status?: string } = { limit: 20, offset: 0 };
+    if (activeFilter.value) {
+      params.status = activeFilter.value;
+    }
+    const res = await api.getLinks(params);
     store.links = res.links;
     store.total = res.total;
-  } else {
-    await store.fetchLinks();
+  } finally {
+    store.loading = false;
   }
+}
+
+watch(
+  activeFilter,
+  () => {
+    loadLinks();
+  },
+  { immediate: true },
+);
+
+function setFilter(status: string) {
+  activeFilter.value = status;
 }
 
 function goToDetail(id: number) {
@@ -73,17 +124,28 @@ function goToDetail(id: number) {
 }
 
 async function handleAddLinks(urls: string[]) {
-  await api.addLinks(urls);
-  await store.fetchLinks();
+  try {
+    await api.addLinks(urls);
+    toast.show(`成功添加 ${urls.length} 条知识`, 'success');
+    await loadLinks();
+  } catch (e) {
+    toast.show('添加失败', 'error');
+  }
 }
 
 async function handleDelete(id: number) {
-  await store.removeLink(id);
+  try {
+    await api.deleteLink(id);
+    toast.show('知识已删除', 'success');
+    await loadLinks();
+  } catch (e) {
+    toast.show('删除失败', 'error');
+  }
 }
 </script>
 
 <style scoped>
-.links-view { max-width: 800px; }
+.links-view { width: 100%; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .page-header h2 { font-size: 22px; }
 .btn-primary {
@@ -96,6 +158,17 @@ async function handleDelete(id: number) {
   border-radius: 6px; font-size: 13px; cursor: pointer; color: #64748b;
 }
 .filter-btn.active { background: #6366f1; color: white; border-color: #6366f1; }
-.link-list { display: flex; flex-direction: column; gap: 12px; }
+.masonry {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.masonry-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .empty-state { text-align: center; color: #94a3b8; padding: 40px; }
 </style>

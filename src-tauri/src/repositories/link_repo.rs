@@ -75,7 +75,11 @@ pub fn delete_link(conn: &Connection, id: i64) -> AppResult<bool> {
 
 pub fn get_links_count(conn: &Connection, status: Option<&str>) -> AppResult<i64> {
     let count: i64 = if let Some(s) = status {
-        conn.query_row("SELECT COUNT(*) FROM links WHERE status = ?", params![s], |row| row.get(0))?
+        conn.query_row(
+            "SELECT COUNT(*) FROM links WHERE status = ?",
+            params![s],
+            |row| row.get(0),
+        )?
     } else {
         conn.query_row("SELECT COUNT(*) FROM links", [], |row| row.get(0))?
     };
