@@ -101,6 +101,9 @@ fn migrate(conn: &Connection) -> AppResult<()> {
     // ai_processing_status migration
     migrate_ai_processing_status(conn)?;
 
+    // Fix ai_results foreign key constraint
+    fix_ai_results_foreign_key(conn)?;
+
     Ok(())
 }
 
@@ -145,12 +148,11 @@ fn drop_classification(conn: &Connection) -> AppResult<()> {
         conn.execute_batch(
             "CREATE TABLE ai_results_new (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                content_id INTEGER NOT NULL UNIQUE,
+                content_id INTEGER NOT NULL UNIQUE REFERENCES contents(id) ON DELETE CASCADE,
                 summary TEXT,
                 tags TEXT DEFAULT '[]',
                 provider TEXT,
-                created_at TEXT DEFAULT (datetime('now')),
-                FOREIGN KEY (content_id) REFERENCES contents(id)
+                created_at TEXT DEFAULT (datetime('now'))
             );
             INSERT INTO ai_results_new (id, content_id, summary, tags, provider, created_at)
                 SELECT id, content_id, summary, tags, provider, created_at FROM ai_results;
@@ -170,6 +172,32 @@ fn migrate_ai_processing_status(conn: &Connection) -> AppResult<()> {
             "ALTER TABLE links ADD COLUMN ai_processing_status TEXT NOT NULL DEFAULT 'idle'
              CHECK(ai_processing_status IN ('idle','organizing','expanding','both'));"
         )?;
+    }
+    Ok(())
+}
+
+fn fix_ai_results_foreign_key(conn: &Connection) -> AppResult<()> {
+    // Check if ai_results foreign key has CASCADE on delete
+    let mut stmt = conn.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='ai_results'")?;
+    let sql: String = stmt.query_row([], |row| row.get(0))?;
+
+    // If the foreign key doesn't have ON DELETE CASCADE, rebuild the table
+    if !sql.contains("ON DELETE CASCADE") {
+        tracing::info!("Fixing ai_results foreign key constraint to add ON DELETE CASCADE");
+        conn.execute_batch(
+            "CREATE TABLE ai_results_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content_id INTEGER NOT NULL UNIQUE REFERENCES contents(id) ON DELETE CASCADE,
+                summary TEXT,
+                tags TEXT DEFAULT '[]',
+                provider TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+            INSERT INTO ai_results_new SELECT * FROM ai_results;
+            DROP TABLE ai_results;
+            ALTER TABLE ai_results_new RENAME TO ai_results;",
+        )?;
+        tracing::info!("Successfully fixed ai_results foreign key constraint");
     }
     Ok(())
 }
