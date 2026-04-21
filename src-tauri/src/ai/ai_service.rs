@@ -180,6 +180,9 @@ async fn search_related_content(title: Option<&str>, text: &str) -> Result<Strin
     use std::process::Command;
     use std::time::Duration;
 
+    // SECURITY: Define allowed script at compile time
+    const DISPATCHER_SCRIPT: &str = "src-tauri/skills/unified-search/dispatcher.py";
+
     // SECURITY: Sanitize inputs to prevent shell injection
     let title_part = title.unwrap_or("");
     let text_preview: String = text.chars().take(100).collect();
@@ -192,28 +195,34 @@ async fn search_related_content(title: Option<&str>, text: &str) -> Result<Strin
     // Apply sanitization to prevent command injection
     let query = sanitize_input(&raw_query);
 
-    // Use absolute path from app data directory instead of current_dir
-    let app_dir = std::env::current_exe()
-        .map_err(|e| format!("Failed to get executable path: {}", e))?
+    // Resolve from executable location
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("Failed to get executable path: {}", e))?;
+
+    let project_root = exe_path
         .parent()
-        .ok_or_else(|| "Failed to get parent directory".to_string())?
-        .to_path_buf();
+        .and_then(|p| p.parent())
+        .ok_or_else(|| "Failed to resolve project root".to_string())?;
 
-    let dispatcher_path = app_dir
-        .join("../src-tauri/skills/unified-search/dispatcher.py")
+    let dispatcher_path = project_root.join(DISPATCHER_SCRIPT)
         .canonicalize()
-        .or_else(|_| {
-            // Fallback for development mode
-            std::env::current_dir()
-                .map_err(|e| format!("Failed to get current dir: {}", e))?
-                .join("src-tauri/skills/unified-search/dispatcher.py")
-                .canonicalize()
-                .map_err(|e| format!("Failed to resolve dispatcher path: {}", e))
-        })?;
+        .map_err(|e| format!("Failed to resolve dispatcher path: {}", e))?;
 
-    // Verify the script exists and is a Python file
-    if !dispatcher_path.exists() || dispatcher_path.extension().and_then(|s| s.to_str()) != Some("py") {
-        return Err(format!("Invalid dispatcher path: {:?}", dispatcher_path));
+    // SECURITY: Verify path is within project root (prevent traversal)
+    if !dispatcher_path.starts_with(project_root) {
+        return Err("Dispatcher path outside project root".to_string());
+    }
+
+    // SECURITY: Verify it's a regular file, not a symlink
+    let metadata = std::fs::metadata(&dispatcher_path)
+        .map_err(|e| format!("Failed to read dispatcher metadata: {}", e))?;
+    if !metadata.is_file() {
+        return Err("Dispatcher is not a regular file".to_string());
+    }
+
+    // SECURITY: Verify file extension
+    if dispatcher_path.extension().and_then(|s| s.to_str()) != Some("py") {
+        return Err(format!("Invalid dispatcher file type: {:?}", dispatcher_path));
     }
 
     // Execute with timeout using tokio
