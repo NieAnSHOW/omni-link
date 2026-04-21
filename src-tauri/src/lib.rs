@@ -45,6 +45,7 @@ pub fn run() {
             commands::link_commands::get_link,
             commands::link_commands::delete_link,
             commands::link_commands::parse_link_cmd,
+            commands::link_commands::start_ai_process,
             commands::content_commands::get_link_detail,
             commands::content_commands::analyze_content_cmd,
             commands::content_commands::update_content_cmd,
