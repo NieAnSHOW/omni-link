@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::error::AppResult;
-use super::ai_service::safe_truncate;
+use super::ai_service::{safe_truncate, safe_truncate_with_info, sanitize_input};
 
 const STOP_WORDS: &[&str] = &[
     "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一", "一个",
@@ -41,8 +41,13 @@ impl FallbackProvider {
     }
 
     pub async fn process_content(&self, text: &str, mode: &str, _search_context: Option<&str>) -> AppResult<serde_json::Value> {
-        let clean_text = safe_truncate(text, 10000);
-        match mode {
+        // SECURITY FIX: Sanitize input to prevent any potential issues
+        let sanitized_text = sanitize_input(text);
+
+        // TRUNCATION FIX: Track if content was truncated
+        let (clean_text, was_truncated) = safe_truncate_with_info(&sanitized_text, 10000);
+
+        let mut result = match mode {
             "organize" => {
                 // 简单整理：按段落去空行、添加基本结构
                 let paragraphs: Vec<&str> = clean_text
@@ -51,14 +56,24 @@ impl FallbackProvider {
                     .filter(|p| !p.is_empty())
                     .collect();
                 let organized = paragraphs.join("\n\n");
-                Ok(serde_json::json!({ "body_text": organized }))
+                serde_json::json!({ "body_text": organized })
             }
             "expand" => {
                 // Fallback 无法扩展，返回原文
-                Ok(serde_json::json!({ "body_text": clean_text.to_string() }))
+                serde_json::json!({ "body_text": clean_text })
             }
-            _ => Err(crate::error::AppError::Ai(format!("Unknown mode: {}", mode))),
+            _ => return Err(crate::error::AppError::Ai(format!("Unknown mode: {}", mode))),
+        };
+
+        // Add truncation warning to response
+        if was_truncated {
+            if let Some(obj) = result.as_object_mut() {
+                obj.insert("truncated".to_string(), serde_json::json!(true));
+                obj.insert("warning".to_string(), serde_json::json!("内容已截断至 10000 字节"));
+            }
         }
+
+        Ok(result)
     }
 }
 

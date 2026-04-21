@@ -1,7 +1,7 @@
 use reqwest::Client;
 
 use crate::error::AppResult;
-use super::ai_service::safe_truncate;
+use super::ai_service::{safe_truncate, safe_truncate_with_info, sanitize_input};
 
 pub struct OllamaProvider {
     client: Client,
@@ -85,7 +85,13 @@ impl OllamaProvider {
     }
 
     pub async fn process_content(&self, text: &str, mode: &str, search_context: Option<&str>) -> AppResult<serde_json::Value> {
-        let truncated = safe_truncate(text, 12000);
+        // SECURITY FIX: Sanitize inputs to prevent prompt injection
+        let sanitized_text = sanitize_input(text);
+        let sanitized_search = search_context.map(|s| sanitize_input(s));
+
+        // TRUNCATION FIX: Track if content was truncated
+        let (truncated, was_truncated) = safe_truncate_with_info(&sanitized_text, 12000);
+
         let prompt = match mode {
             "organize" => format!(
                 "你是一个内容整理专家。请对以下文档内容进行整理：\n\
@@ -97,7 +103,7 @@ impl OllamaProvider {
                  内容：{}", truncated
             ),
             "expand" => {
-                let search_part = search_context.unwrap_or("无额外搜索结果");
+                let search_part = sanitized_search.as_deref().unwrap_or("无额外搜索结果");
                 format!(
                     "你是一个内容扩展专家。基于以下原文和搜索结果，对文档进行扩展：\n\
                      - 针对原文中可以深入展开的内容进行补充\n\
@@ -127,10 +133,22 @@ impl OllamaProvider {
             .await?;
 
         let data: serde_json::Value = response.error_for_status()?.json().await?;
-        let response_str = data["response"].as_str().unwrap_or("{}");
 
-        let result: serde_json::Value = serde_json::from_str(response_str)
-            .unwrap_or_else(|_| serde_json::json!({"body_text": ""}));
+        // ERROR HANDLING FIX: Properly propagate parse errors instead of silently returning empty objects
+        let response_str = data["response"]
+            .as_str()
+            .ok_or_else(|| crate::error::AppError::Ai("Ollama response missing response field".to_string()))?;
+
+        let mut result: serde_json::Value = serde_json::from_str(response_str)
+            .map_err(|e| crate::error::AppError::Ai(format!("Failed to parse Ollama response as JSON: {}", e)))?;
+
+        // Add truncation warning to response
+        if was_truncated {
+            if let Some(obj) = result.as_object_mut() {
+                obj.insert("truncated".to_string(), serde_json::json!(true));
+                obj.insert("warning".to_string(), serde_json::json!("内容已截断至 12000 字节"));
+            }
+        }
 
         Ok(result)
     }
