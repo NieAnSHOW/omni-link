@@ -142,3 +142,4 @@ src-tauri/target/
 .claude
 .superpowers
 config.json
+.worktrees/
