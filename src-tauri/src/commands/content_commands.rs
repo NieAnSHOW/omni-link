@@ -54,11 +54,11 @@ pub async fn analyze_content_cmd(
     config_state: State<'_, ConfigState>,
     content_id: i64,
 ) -> AppResult<serde_json::Value> {
-    let (body_text, title, _link_id) = {
+    let (body_text, title) = {
         let conn = state.0.lock().unwrap();
         let content = content_repo::get_content_by_id(&conn, content_id)?
             .ok_or_else(|| AppError::NotFound("Content not found".into()))?;
-        (content.body_text.unwrap_or_default(), content.title, content.link_id)
+        (content.body_text.unwrap_or_default(), content.title)
     };
 
     let config = config_state.0.lock().unwrap().clone();
