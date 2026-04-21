@@ -123,6 +123,7 @@ fn row_to_link(row: &rusqlite::Row) -> rusqlite::Result<Link> {
         platform: row.get("platform")?,
         source: row.get("source")?,
         status: row.get("status")?,
+        ai_processing_status: row.get("ai_processing_status")?,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
     })

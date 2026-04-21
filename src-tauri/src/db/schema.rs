@@ -11,6 +11,7 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
             platform TEXT,
             source TEXT DEFAULT 'manual',
             status TEXT DEFAULT 'pending' CHECK(status IN ('pending','parsing','parsed','failed')),
+            ai_processing_status TEXT DEFAULT 'idle' CHECK(ai_processing_status IN ('idle','organizing','expanding','both')),
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
         );
@@ -97,6 +98,9 @@ fn migrate(conn: &Connection) -> AppResult<()> {
     // Drop classification column from ai_results
     drop_classification(conn)?;
 
+    // ai_processing_status migration
+    migrate_ai_processing_status(conn)?;
+
     Ok(())
 }
 
@@ -152,6 +156,19 @@ fn drop_classification(conn: &Connection) -> AppResult<()> {
                 SELECT id, content_id, summary, tags, provider, created_at FROM ai_results;
             DROP TABLE ai_results;
             ALTER TABLE ai_results_new RENAME TO ai_results;",
+        )?;
+    }
+    Ok(())
+}
+
+fn migrate_ai_processing_status(conn: &Connection) -> AppResult<()> {
+    let has_ai_processing: bool = conn
+        .prepare("SELECT ai_processing_status FROM links LIMIT 0")
+        .is_ok();
+    if !has_ai_processing {
+        conn.execute_batch(
+            "ALTER TABLE links ADD COLUMN ai_processing_status TEXT NOT NULL DEFAULT 'idle'
+             CHECK(ai_processing_status IN ('idle','organizing','expanding','both'));"
         )?;
     }
     Ok(())

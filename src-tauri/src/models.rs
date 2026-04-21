@@ -8,6 +8,7 @@ pub struct Link {
     pub platform: Option<String>,
     pub source: String,
     pub status: String,
+    pub ai_processing_status: String,
     pub created_at: String,
     pub updated_at: String,
 }
