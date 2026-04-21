@@ -4,6 +4,10 @@
 
 <script setup lang="ts">
 import AppLayout from './components/AppLayout.vue';
+
+if (import.meta.env.PROD) {
+  document.addEventListener('contextmenu', (e) => e.preventDefault());
+}
 </script>
 
 <style>
