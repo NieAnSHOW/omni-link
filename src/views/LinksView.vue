@@ -37,7 +37,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useLinksStore } from '../stores/links';
 import { useApi } from '../composables/useApi';
@@ -53,7 +53,6 @@ const api = useApi();
 const toast = useToast();
 const showDialog = ref(false);
 const activeFilter = ref<string>('');
-const route = useRoute();
 
 const filters = [
   { label: '全部', value: '' },
@@ -65,13 +64,9 @@ const filters = [
 async function loadLinks() {
   store.loading = true;
   try {
-    const params: { limit: number; offset: number; status?: string; category_id?: number } = { limit: 20, offset: 0 };
+    const params: { limit: number; offset: number; status?: string } = { limit: 20, offset: 0 };
     if (activeFilter.value) {
       params.status = activeFilter.value;
-    }
-    const catId = route.query.category;
-    if (catId) {
-      params.category_id = Number(catId);
     }
     const res = await api.getLinks(params);
     store.links = res.links;
@@ -82,12 +77,8 @@ async function loadLinks() {
 }
 
 watch(
-  [() => route.query.category, activeFilter],
+  activeFilter,
   () => {
-    const catId = route.query.category;
-    if (catId) {
-      activeFilter.value = '';
-    }
     loadLinks();
   },
   { immediate: true },

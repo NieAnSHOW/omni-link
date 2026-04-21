@@ -16,10 +16,6 @@
           <span class="icon">⚙️</span> 设置
         </router-link>
       </nav>
-      <div class="category-section">
-        <CategoryTree :categories="categories" :selected-id="selectedCategoryId" @select="handleCategorySelect"
-          @refresh="fetchCategories" />
-      </div>
     </aside>
     <main class="main-content">
       <router-view />
@@ -29,34 +25,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, provide } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import { storeToRefs } from 'pinia';
-import CategoryTree from './CategoryTree.vue';
+import { computed } from 'vue';
+import { useRoute } from 'vue-router';
 import Toast from './Toast.vue';
-import { useCategoriesStore } from '../stores/categories';
 
-const router = useRouter();
 const route = useRoute();
 const isLinksActive = computed(() => route.path.startsWith('/links'));
-const categoriesStore = useCategoriesStore();
-const { categories } = storeToRefs(categoriesStore);
-const selectedCategoryId = ref<number | null>(null);
-
-provide('selectedCategoryId', selectedCategoryId);
-
-onMounted(async () => {
-  await categoriesStore.fetchCategories();
-});
-
-async function fetchCategories() {
-  await categoriesStore.fetchCategories();
-}
-
-function handleCategorySelect(id: number | null) {
-  selectedCategoryId.value = id;
-  router.push({ path: '/links', query: id ? { category: String(id) } : {} });
-}
 </script>
 
 <style scoped>
@@ -118,12 +92,6 @@ function handleCategorySelect(id: number | null) {
 .nav-item.active {
   background: #6366f1;
   color: white;
-}
-
-.category-section {
-  flex: 1;
-  border-top: 1px solid #e2e8f0;
-  padding-top: 8px;
 }
 
 .main-content {

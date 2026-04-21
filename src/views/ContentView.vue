@@ -36,15 +36,6 @@
         <div class="meta">
           <span class="platform-badge">{{ detail.link.platform || 'web' }}</span>
           <a :href="detail.link.url" target="_blank" class="original-link">查看原文 →</a>
-          <span v-if="categoryName && !editingCategory" class="category-badge clickable"
-            @click="editingCategory = true">{{ categoryName }} ✎</span>
-          <span v-if="!categoryName && !editingCategory" class="category-badge clickable add"
-            @click="editingCategory = true">+ 设置分类</span>
-          <select v-if="editingCategory" class="category-select" :value="selectedCategoryId ?? ''"
-            @change="handleCategoryChange" @blur="editingCategory = false">
-            <option value="">无分类</option>
-            <option v-for="cat in flatCategories" :key="cat.id" :value="cat.id">{{ cat.prefix }}{{ cat.name }}</option>
-          </select>
         </div>
       </div>
 
@@ -54,8 +45,6 @@
         <TagInput v-if="detail.content" :model-value="contentTags" :all-tags="tagsStore.tags"
           @update:model-value="handleTagsUpdate" />
       </div>
-
-
 
       <ContentEditor v-if="isEditing"
         :initial-title="detail.content?.title ?? null"
@@ -85,7 +74,6 @@ import { marked } from 'marked';
 import { useApi } from '../composables/useApi';
 import { useToast } from '../composables/useToast';
 import { useTagsStore } from '../stores/tags';
-import { useCategoriesStore } from '../stores/categories';
 import TagInput from '../components/TagInput.vue';
 import ContentEditor from '../components/ContentEditor.vue';
 import type { LinkDetail, TagWithCount } from '../types/index';
@@ -99,23 +87,18 @@ const loading = ref(true);
 const parsing = ref(false);
 const analyzing = ref(false);
 const tagsStore = useTagsStore();
-const categoriesStore = useCategoriesStore();
 const contentTags = ref<TagWithCount[]>([]);
-const editingCategory = ref(false);
 const isEditing = ref(false);
-const selectedCategoryId = ref<number | null>(null);
 
 onMounted(async () => {
   await fetchDetail();
   await tagsStore.fetchTags();
-  await categoriesStore.fetchCategories();
 });
 
 async function fetchDetail() {
   loading.value = true;
   try {
     detail.value = await api.getLinkDetail(Number(props.id));
-    selectedCategoryId.value = detail.value?.link.category_id ?? null;
     console.log('[ContentView] fetchDetail:', {
       linkId: detail.value?.link.id,
       status: detail.value?.link.status,
@@ -179,44 +162,6 @@ async function handleTagsUpdate(newTags: TagWithCount[]) {
   contentTags.value = newTags;
   const tagIds = newTags.map(t => t.id).filter(id => id > 0);
   await api.updateContentTags(detail.value.content.id, tagIds);
-}
-
-const categoryName = computed(() => {
-  if (!detail.value?.link.category_id) return null;
-  const find = (nodes: any[]): string | null => {
-    for (const n of nodes) {
-      if (n.id === detail.value!.link.category_id) return n.name;
-      const found = find(n.children);
-      if (found) return found;
-    }
-    return null;
-  };
-  return find(categoriesStore.categories);
-});
-
-const flatCategories = computed(() => {
-  const result: { id: number; name: string; prefix: string }[] = [];
-  function walk(nodes: any[], depth: number) {
-    for (const n of nodes) {
-      result.push({ id: n.id, name: n.name, prefix: '\u00A0\u00A0'.repeat(depth) });
-      walk(n.children, depth + 1);
-    }
-  }
-  walk(categoriesStore.categories, 0);
-  return result;
-});
-
-async function handleCategoryChange(e: Event) {
-  const value = (e.target as HTMLSelectElement).value;
-  const categoryId = value ? Number(value) : null;
-  try {
-    await api.updateLinkCategory(Number(props.id), categoryId);
-    toast.show('分类已更新', 'success');
-    editingCategory.value = false;
-    await fetchDetail();
-  } catch (e) {
-    toast.show('更新分类失败', 'error');
-  }
 }
 
 const savingContent = ref(false);
@@ -477,32 +422,5 @@ const renderedMarkdown = computed(() => {
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 4px;
-}
-
-.category-badge {
-  font-size: 11px;
-  background: #f0f0ff;
-  padding: 2px 8px;
-  border-radius: 4px;
-  color: #6366f1;
-}
-
-.category-badge.clickable {
-  cursor: pointer;
-}
-
-.category-badge.add {
-  color: #94a3b8;
-  background: #f1f5f9;
-}
-
-.category-select {
-  font-size: 12px;
-  padding: 2px 6px;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-  color: #6366f1;
-  background: white;
-  cursor: pointer;
 }
 </style>
