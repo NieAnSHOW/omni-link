@@ -15,6 +15,9 @@
 import { ref, onMounted } from 'vue';
 import AppLayout from './components/AppLayout.vue';
 
+const SPLASH_DURATION = 1200;
+const FADE_DURATION = 300;
+
 const showSplash = ref(true);
 
 if (import.meta.env.PROD) {
@@ -26,7 +29,11 @@ function minDelay(ms: number): Promise<void> {
 }
 
 onMounted(async () => {
-  await minDelay(1500);
+  await minDelay(SPLASH_DURATION);
+  // Trigger fade-out
+  const splash = document.querySelector('.splash-screen');
+  if (splash) (splash as HTMLElement).style.opacity = '0';
+  await minDelay(FADE_DURATION);
   showSplash.value = false;
 });
 </script>
@@ -43,6 +50,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
   justify-content: center;
   background: #1e293b;
   z-index: 9999;
+  opacity: 1;
+  transition: opacity 0.3s ease-out;
 }
 
 .splash-content {
