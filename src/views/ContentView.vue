@@ -70,20 +70,20 @@
 
     <!-- AI 整理选项弹窗 -->
     <div v-if="showAiProcessModal" class="modal-overlay" @click.self="closeAiProcessModal" @keydown.escape="closeAiProcessModal">
-      <div class="modal-content">
+      <div class="modal-content" role="dialog" aria-modal="true">
         <div class="modal-header">
           <h3>选择 AI 处理方式</h3>
           <button class="modal-close" @click="closeAiProcessModal" aria-label="关闭">×</button>
         </div>
-        <button class="modal-option" @click="handleAiProcess('organize')" @keydown.enter="handleAiProcess('organize')" role="button" aria-label="AI 整理内容">
+        <button class="modal-option" @click="handleAiProcess('organize')" aria-label="AI 整理内容">
           <strong>AI 整理内容</strong>
           <span>清理排版、去除冗余、补全结构</span>
         </button>
-        <button class="modal-option" @click="handleAiProcess('expand')" @keydown.enter="handleAiProcess('expand')" role="button" aria-label="AI 扩展内容">
+        <button class="modal-option" @click="handleAiProcess('expand')" aria-label="AI 扩展内容">
           <strong>AI 扩展内容</strong>
           <span>基于当前内容搜索并扩展补充</span>
         </button>
-        <button class="modal-option" @click="handleAiProcess('both')" @keydown.enter="handleAiProcess('both')" role="button" aria-label="整理并扩展">
+        <button class="modal-option" @click="handleAiProcess('both')" aria-label="整理并扩展">
           <strong>整理并扩展</strong>
           <span>先整理后扩展，完整处理</span>
         </button>
@@ -98,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { marked } from 'marked';
 import { useApi } from '../composables/useApi';
@@ -149,6 +149,16 @@ async function handleAiProcess(mode: string) {
 function closeAiProcessModal() {
   showAiProcessModal.value = false;
 }
+
+// Focus management for modal
+watch(showAiProcessModal, (isOpen) => {
+  if (isOpen) {
+    nextTick(() => {
+      const firstOption = document.querySelector('.modal-option') as HTMLElement;
+      firstOption?.focus();
+    });
+  }
+});
 
 onMounted(async () => {
   await fetchDetail();
