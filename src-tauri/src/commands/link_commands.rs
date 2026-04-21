@@ -14,6 +14,7 @@ pub async fn get_links(
     offset: Option<i64>,
     status: Option<String>,
 ) -> AppResult<LinksResponse> {
+    tracing::debug!("get_links called: limit={:?}, offset={:?}, status={:?}", limit, offset, status);
     let conn = state.0.lock().unwrap();
     let lim = limit.unwrap_or(20);
     let off = offset.unwrap_or(0);
@@ -33,16 +34,35 @@ pub async fn create_link(
     let src = source.as_deref();
 
     if let Some(url_list) = urls {
+        tracing::info!("Creating {} links from batch, source={:?}", url_list.len(), src);
         let mut links = Vec::new();
         for u in url_list {
-            let link = link_repo::create_link(&conn, &u, None, src)?;
-            links.push(link);
+            match link_repo::create_link(&conn, &u, None, src) {
+                Ok(link) => {
+                    tracing::info!("Link created: id={}, url={}", link.id, link.url);
+                    links.push(link);
+                }
+                Err(e) => {
+                    tracing::error!("Failed to create link url={}: {}", u, e);
+                    return Err(e);
+                }
+            }
         }
         Ok(links)
     } else if let Some(u) = url {
-        let link = link_repo::create_link(&conn, &u, None, src)?;
-        Ok(vec![link])
+        tracing::info!("Creating single link: url={}, source={:?}", u, src);
+        match link_repo::create_link(&conn, &u, None, src) {
+            Ok(link) => {
+                tracing::info!("Link created: id={}, url={}", link.id, link.url);
+                Ok(vec![link])
+            }
+            Err(e) => {
+                tracing::error!("Failed to create link url={}: {}", u, e);
+                Err(e)
+            }
+        }
     } else {
+        tracing::error!("create_link called without url or urls parameter");
         Err(AppError::Parse("url or urls is required".into()))
     }
 }
@@ -56,12 +76,22 @@ pub async fn get_link(state: State<'_, DbState>, id: i64) -> AppResult<Link> {
 
 #[tauri::command]
 pub async fn delete_link(state: State<'_, DbState>, id: i64) -> AppResult<bool> {
+    tracing::info!("Deleting link: id={}", id);
     let conn = state.0.lock().unwrap();
-    let deleted = link_repo::delete_link(&conn, id)?;
-    if !deleted {
-        return Err(AppError::NotFound("Link not found".into()));
+    match link_repo::delete_link(&conn, id) {
+        Ok(deleted) => {
+            if !deleted {
+                tracing::error!("Link not found for deletion: id={}", id);
+                return Err(AppError::NotFound("Link not found".into()));
+            }
+            tracing::info!("Link deleted successfully: id={}", id);
+            Ok(true)
+        }
+        Err(e) => {
+            tracing::error!("Failed to delete link id={}: {}", id, e);
+            Err(e)
+        }
     }
-    Ok(true)
 }
 
 #[tauri::command]
