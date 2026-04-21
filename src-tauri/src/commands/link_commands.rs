@@ -119,16 +119,39 @@ pub async fn start_ai_process(
 ) -> Result<(), String> {
     use crate::repositories::content_repo;
 
+    tracing::info!("start_ai_process called: link_id={}, mode={}", link_id, mode);
+
+    // 映射前端 mode 到数据库允许的值
+    let db_status = match mode.as_str() {
+        "organize" => "organizing",
+        "expand" => "expanding",
+        "both" => "both",
+        "analyze" => "organizing", // analyze 也映射为 organizing
+        _ => {
+            tracing::error!("Invalid AI process mode: {}", mode);
+            return Err(format!("Invalid mode: {}", mode));
+        }
+    };
+
     // 1. 更新 ai_processing_status
     {
-        let conn = state.0.lock().map_err(|e| e.to_string())?;
-        link_repo::update_ai_processing_status(&conn, link_id, &mode)
-            .map_err(|e| e.to_string())?;
+        let conn = state.0.lock().map_err(|e| {
+            tracing::error!("Failed to lock database: {}", e);
+            e.to_string()
+        })?;
+        link_repo::update_ai_processing_status(&conn, link_id, db_status)
+            .map_err(|e| {
+                tracing::error!("Failed to update ai_processing_status for link_id={}: {}", link_id, e);
+                e.to_string()
+            })?;
     }
 
     // 2. 异步执行 AI 处理
     let db_mutex = state.0.clone();
-    let config_clone = config.0.lock().map_err(|e| e.to_string())?.clone();
+    let config_clone = config.0.lock().map_err(|e| {
+        tracing::error!("Failed to lock config: {}", e);
+        e.to_string()
+    })?.clone();
     tauri::async_runtime::spawn(async move {
         // 获取 content_id
         let content_id_result = {
@@ -141,12 +164,24 @@ pub async fn start_ai_process(
         };
 
         if let Ok(content_id) = content_id_result {
+            tracing::info!("Found content_id={} for link_id={}", content_id, link_id);
+
             // 获取正文内容
             let (body_text, title) = {
                 let conn = db_mutex.lock().unwrap();
                 match content_repo::get_content_by_id(&conn, content_id) {
                     Ok(Some(c)) => (c.body_text.unwrap_or_default(), c.title),
-                    _ => {
+                    Ok(None) => {
+                        tracing::error!("Content not found for content_id={}", content_id);
+                        {
+                            let conn = db_mutex.lock().unwrap();
+                            let _ = link_repo::update_ai_processing_status(&conn, link_id, "idle");
+                        }
+                        let _ = app_handle.emit("ai-process-failed", link_id);
+                        return;
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to get content for content_id={}: {}", content_id, e);
                         {
                             let conn = db_mutex.lock().unwrap();
                             let _ = link_repo::update_ai_processing_status(&conn, link_id, "idle");
@@ -158,11 +193,20 @@ pub async fn start_ai_process(
             };
 
             // 执行 AI 处理
+            tracing::info!("Starting AI processing: mode={}, link_id={}", mode, link_id);
             let result: Result<serde_json::Value, _> = match mode.as_str() {
                 "analyze" => ai_service::analyze_content(&config_clone.ai, &body_text, title.as_deref()).await,
                 "organize" => ai_service::organize_content(&config_clone.ai, &body_text).await,
                 "expand" => ai_service::expand_content(&config_clone.ai, &body_text, title.as_deref()).await,
+                "both" => {
+                    // 先整理后扩展
+                    match ai_service::organize_content(&config_clone.ai, &body_text).await {
+                        Ok(_) => ai_service::expand_content(&config_clone.ai, &body_text, title.as_deref()).await,
+                        Err(e) => Err(e),
+                    }
+                }
                 _ => {
+                    tracing::error!("Unknown AI processing mode: {}", mode);
                     Err(crate::error::AppError::Ai(format!("Unknown mode: {}", mode)).into())
                 }
             };
@@ -170,16 +214,24 @@ pub async fn start_ai_process(
             // 3. 处理完成，重置状态
             {
                 let conn = db_mutex.lock().unwrap();
-                let _ = link_repo::update_ai_processing_status(&conn, link_id, "idle");
+                if let Err(e) = link_repo::update_ai_processing_status(&conn, link_id, "idle") {
+                    tracing::error!("Failed to reset ai_processing_status for link_id={}: {}", link_id, e);
+                }
             }
 
             // 4. 发送前端事件
-            if result.is_ok() {
-                let _ = app_handle.emit("ai-process-complete", link_id);
-            } else {
-                let _ = app_handle.emit("ai-process-failed", link_id);
+            match result {
+                Ok(_) => {
+                    tracing::info!("AI processing completed successfully for link_id={}", link_id);
+                    let _ = app_handle.emit("ai-process-complete", link_id);
+                }
+                Err(e) => {
+                    tracing::error!("AI processing failed for link_id={}: {:?}", link_id, e);
+                    let _ = app_handle.emit("ai-process-failed", link_id);
+                }
             }
         } else {
+            tracing::error!("Content not found for link_id={}: {:?}", link_id, content_id_result.err());
             // 未找到 content，重置状态
             {
                 let conn = db_mutex.lock().unwrap();
@@ -189,5 +241,6 @@ pub async fn start_ai_process(
         }
     });
 
+    tracing::info!("start_ai_process initiated successfully for link_id={}", link_id);
     Ok(())
 }

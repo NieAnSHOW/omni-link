@@ -134,9 +134,21 @@ pub fn update_ai_processing_status(
     link_id: i64,
     status: &str,
 ) -> AppResult<()> {
+    tracing::debug!("Updating ai_processing_status: link_id={}, status={}", link_id, status);
+
     conn.execute(
         "UPDATE links SET ai_processing_status = ?1, updated_at = datetime('now') WHERE id = ?2",
         params![status, link_id],
-    )?;
+    ).map_err(|e| {
+        tracing::error!("Database error on update_ai_processing_status: link_id={}, status={}, error={}", link_id, status, e);
+        e
+    })?;
+
+    if conn.changes() == 0 {
+        tracing::warn!("No rows updated for link_id={}, link may not exist", link_id);
+    } else {
+        tracing::info!("Successfully updated ai_processing_status: link_id={}, status={}", link_id, status);
+    }
+
     Ok(())
 }
