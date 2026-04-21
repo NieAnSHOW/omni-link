@@ -10,7 +10,6 @@ pub struct Link {
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
-    pub category_id: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -100,33 +99,10 @@ pub struct TagWithCount {
     pub created_at: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Category {
-    pub id: i64,
-    pub name: String,
-    pub parent_id: Option<i64>,
-    pub created_at: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CategoryNode {
-    pub id: i64,
-    pub name: String,
-    pub parent_id: Option<i64>,
-    pub children: Vec<CategoryNode>,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct CreateTagInput {
     pub name: String,
     pub color: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpsertCategoryInput {
-    pub id: Option<i64>,
-    pub name: String,
-    pub parent_id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -42,13 +42,6 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
             PRIMARY KEY (content_id, tag_id)
         );
 
-        CREATE TABLE IF NOT EXISTS categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            parent_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
-            created_at TEXT DEFAULT (datetime('now'))
-        );
-
         CREATE TABLE IF NOT EXISTS ai_results (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             content_id INTEGER NOT NULL UNIQUE REFERENCES contents(id) ON DELETE CASCADE,
@@ -76,25 +69,13 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
         CREATE INDEX IF NOT EXISTS idx_contents_link ON contents(link_id);",
     )?;
 
-    // Migrate existing DB: add category_id column if missing, then create index
+    // Migrate existing DB
     migrate(conn)?;
 
     Ok(())
 }
 
 fn migrate(conn: &Connection) -> AppResult<()> {
-    let has_category_id: bool = conn
-        .prepare("SELECT category_id FROM links LIMIT 0")
-        .is_ok();
-    if !has_category_id {
-        conn.execute_batch(
-            "ALTER TABLE links ADD COLUMN category_id INTEGER;
-             CREATE INDEX IF NOT EXISTS idx_links_category ON links(category_id);",
-        )?;
-    } else {
-        conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_links_category ON links(category_id);")?;
-    }
-
     // new: content_status migration
     let has_content_status: bool = conn
         .prepare("SELECT content_status FROM contents LIMIT 0")

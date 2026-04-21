@@ -5,7 +5,7 @@ use crate::config::ConfigState;
 use crate::db::DbState;
 use crate::error::{AppError, AppResult};
 use crate::models::{AiResultParsed, ContentParsed, LinkDetail, UpdateContentInput};
-use crate::repositories::{ai_result_repo, category_repo, content_repo, link_repo, tag_repo};
+use crate::repositories::{ai_result_repo, content_repo, link_repo, tag_repo};
 
 #[tauri::command]
 pub async fn get_link_detail(state: State<'_, DbState>, id: i64) -> AppResult<LinkDetail> {
@@ -54,7 +54,7 @@ pub async fn analyze_content_cmd(
     config_state: State<'_, ConfigState>,
     content_id: i64,
 ) -> AppResult<serde_json::Value> {
-    let (body_text, title, link_id) = {
+    let (body_text, title, _link_id) = {
         let conn = state.0.lock().unwrap();
         let content = content_repo::get_content_by_id(&conn, content_id)?
             .ok_or_else(|| AppError::NotFound("Content not found".into()))?;
@@ -95,13 +95,6 @@ pub async fn analyze_content_cmd(
         tag_ids.push(tag_id);
     }
     tag_repo::set_content_tags(&conn, content_id, &tag_ids)?;
-
-    // 分类自动推断
-    if let Some(ref cat_path) = classification {
-        if let Some(cat_id) = category_repo::find_or_create_by_path(&conn, cat_path)? {
-            let _ = link_repo::update_link_category(&conn, link_id, Some(cat_id));
-        }
-    }
 
     Ok(result)
 }
