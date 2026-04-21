@@ -11,7 +11,6 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
             platform TEXT,
             source TEXT DEFAULT 'manual',
             status TEXT DEFAULT 'pending' CHECK(status IN ('pending','parsing','parsed','failed')),
-            category_id INTEGER,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
         );
@@ -76,7 +75,7 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
 }
 
 fn migrate(conn: &Connection) -> AppResult<()> {
-    // new: content_status migration
+    // content_status migration
     let has_content_status: bool = conn
         .prepare("SELECT content_status FROM contents LIMIT 0")
         .is_ok();
@@ -84,13 +83,49 @@ fn migrate(conn: &Connection) -> AppResult<()> {
         conn.execute_batch("ALTER TABLE contents ADD COLUMN content_status TEXT DEFAULT 'success';")?;
     }
 
-    // new: updated_at for contents
+    // updated_at for contents
     let has_updated_at: bool = conn
         .prepare("SELECT updated_at FROM contents LIMIT 0")
         .is_ok();
     if !has_updated_at {
         conn.execute_batch("ALTER TABLE contents ADD COLUMN updated_at TEXT;")?;
         conn.execute_batch("UPDATE contents SET updated_at = datetime('now') WHERE updated_at IS NULL;")?;
+    }
+
+    // Drop categories table and category_id column from links
+    drop_categories(conn)?;
+
+    Ok(())
+}
+
+fn drop_categories(conn: &Connection) -> AppResult<()> {
+    // Drop categories table if exists
+    conn.execute_batch("DROP TABLE IF EXISTS categories;")?;
+
+    // Rebuild links table without category_id (SQLite < 3.35.0 safe)
+    let has_category_id: bool = conn
+        .prepare("SELECT category_id FROM links LIMIT 0")
+        .is_ok();
+    if has_category_id {
+        conn.execute_batch(
+            "CREATE TABLE links_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT NOT NULL UNIQUE,
+                title TEXT,
+                platform TEXT,
+                source TEXT DEFAULT 'manual',
+                status TEXT DEFAULT 'pending' CHECK(status IN ('pending','parsing','parsed','failed')),
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            );
+            INSERT INTO links_new (id, url, title, platform, source, status, created_at, updated_at)
+                SELECT id, url, title, platform, source, status, created_at, updated_at FROM links;
+            DROP TABLE links;
+            ALTER TABLE links_new RENAME TO links;
+            CREATE INDEX IF NOT EXISTS idx_links_status ON links(status);
+            CREATE INDEX IF NOT EXISTS idx_links_platform ON links(platform);
+            CREATE INDEX IF NOT EXISTS idx_links_created ON links(created_at);",
+        )?;
     }
 
     Ok(())
