@@ -20,13 +20,9 @@
             <button v-if="detail.link.status !== 'parsing'" class="btn-primary" @click="parseLink" :disabled="parsing">
               {{ parsing ? '解析中...' : (detail.content ? '重新解析' : '解析内容') }}
             </button>
-            <button v-if="detail.content && !detail.ai" class="btn-secondary" @click="analyzeContent"
+            <button v-if="detail.content" class="btn-secondary" @click="analyzeContent"
               :disabled="analyzing">
-              {{ analyzing ? '摘要生成中...' : 'AI 摘要' }}
-            </button>
-            <button v-if="detail.content && detail.ai" class="btn-secondary" @click="analyzeContent"
-              :disabled="analyzing">
-              {{ analyzing ? '摘要生成中...' : '重新生成摘要' }}
+              {{ analyzing ? '摘要生成中...' : (detail.ai ? '重新生成摘要' : 'AI 摘要') }}
             </button>
             <button v-if="detail.content && !isEditing" class="btn-secondary" @click="isEditing = true">
               编辑
@@ -136,10 +132,11 @@ async function parseLink() {
     const result = await api.parseLink(Number(props.id));
     if (result.error) {
       toast.show(result.error, 'error');
+      await fetchDetail();
     } else {
       toast.show('解析完成', 'success');
-      await fetchDetail();
       // 自动触发 AI 摘要
+      await fetchDetail();
       if (detail.value?.content) {
         autoAnalyzing.value = true;
         try {
@@ -147,7 +144,8 @@ async function parseLink() {
           toast.show('AI 摘要完成', 'success');
           await fetchDetail();
           await tagsStore.fetchTags();
-        } catch {
+        } catch (e) {
+          console.error(e);
           toast.show('AI 摘要失败', 'error');
         } finally {
           autoAnalyzing.value = false;
@@ -163,14 +161,15 @@ async function parseLink() {
 
 async function analyzeContent() {
   if (!detail.value?.content) return;
+  if (analyzing.value || autoAnalyzing.value) return;
   analyzing.value = true;
   try {
     await api.analyzeContent(detail.value.content.id);
-    toast.show('AI 分析完成', 'success');
+    toast.show('AI 摘要完成', 'success');
     await fetchDetail();
     await tagsStore.fetchTags();
   } catch (e) {
-    toast.show('AI 分析失败', 'error');
+    toast.show('AI 摘要失败', 'error');
   } finally {
     analyzing.value = false;
   }
