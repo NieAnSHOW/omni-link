@@ -90,6 +90,21 @@
       </div>
     </div>
 
+    <!-- 确认弹窗 -->
+    <div v-if="showConfirmModal" class="modal-overlay" @click.self="closeConfirmModal" @keydown.escape="closeConfirmModal">
+      <div class="modal-content" role="dialog" aria-modal="true">
+        <div class="modal-header">
+          <h3>确认操作</h3>
+          <button class="modal-close" @click="closeConfirmModal" aria-label="关闭">×</button>
+        </div>
+        <p class="modal-message">此操作会覆盖原文，确认是否要继续？</p>
+        <div class="modal-actions">
+          <button class="btn-cancel" @click="closeConfirmModal">取消</button>
+          <button class="btn-confirm" @click="confirmAiProcess">继续</button>
+        </div>
+      </div>
+    </div>
+
     <!-- AI 处理中提示 -->
     <div v-if="aiProcessing" class="ai-processing-hint">
       {{ aiProcessingText }}
@@ -122,6 +137,8 @@ const isEditing = ref(false);
 const autoAnalyzing = ref(false);
 const showAiProcessModal = ref(false);
 const aiProcessing = ref(false);
+const showConfirmModal = ref(false);
+const pendingAiMode = ref('');
 const aiProcessingText = ref('');
 
 const modeLabels: Record<string, string> = {
@@ -133,16 +150,27 @@ const modeLabels: Record<string, string> = {
 async function handleAiProcess(mode: string) {
   if (!detail.value?.content || aiProcessing.value) return;
   showAiProcessModal.value = false;
-  aiProcessingText.value = modeLabels[mode] || '处理中...';
-  aiProcessing.value = true;
+  pendingAiMode.value = mode;
+  showConfirmModal.value = true;
+}
+
+function closeConfirmModal() {
+  showConfirmModal.value = false;
+  pendingAiMode.value = '';
+}
+
+async function confirmAiProcess() {
+  if (!detail.value?.link || !pendingAiMode.value) return;
+  showConfirmModal.value = false;
+
   try {
-    await api.aiProcessContent(detail.value.content.id, mode);
-    toast.show('AI 处理完成', 'success');
-    await fetchDetail();
+    await api.startAiProcess(detail.value.link.id, pendingAiMode.value);
+    toast.show('AI 处理已启动', 'success');
+    router.push({ name: 'links' });
   } catch (e: any) {
-    toast.show(e?.message || 'AI 处理失败', 'error');
+    toast.show(e?.message || 'AI 处理启动失败', 'error');
   } finally {
-    aiProcessing.value = false;
+    pendingAiMode.value = '';
   }
 }
 
@@ -617,5 +645,46 @@ const renderedMarkdown = computed(() => {
   font-size: 14px;
   z-index: 200;
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.modal-message {
+  font-size: 14px;
+  color: #334155;
+  margin: 16px 0 24px;
+  line-height: 1.6;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.btn-cancel {
+  padding: 8px 20px;
+  background: #f1f5f9;
+  color: #64748b;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-cancel:hover {
+  background: #e2e8f0;
+}
+
+.btn-confirm {
+  padding: 8px 20px;
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-confirm:hover {
+  background: #4f46e5;
 }
 </style>
