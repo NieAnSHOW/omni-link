@@ -13,18 +13,22 @@
       </button>
     </div>
 
-    <div v-if="loading" class="link-list">
-      <LinkCardSkeleton v-for="i in 5" :key="i" />
+    <div v-if="loading" class="masonry">
+      <div v-for="col in columnCount" :key="col" class="masonry-col">
+        <LinkCardSkeleton v-for="i in skeletonRows(col)" :key="i" />
+      </div>
     </div>
     <div v-else-if="links.length === 0" class="empty-state">还没有知识，点击上方按钮添加</div>
-    <div v-else class="link-list">
-      <LinkCard
-        v-for="link in links"
-        :key="link.id"
-        :link="link"
-        @click="goToDetail(link.id)"
-        @delete="handleDelete"
-      />
+    <div v-else class="masonry">
+      <div v-for="(col, ci) in masonryColumns" :key="ci" class="masonry-col">
+        <LinkCard
+          v-for="link in col"
+          :key="link.id"
+          :link="link"
+          @click="goToDetail(link.id)"
+          @delete="handleDelete"
+        />
+      </div>
     </div>
 
     <AddLinkDialog
@@ -36,7 +40,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useLinksStore } from '../stores/links';
@@ -53,6 +57,33 @@ const api = useApi();
 const toast = useToast();
 const showDialog = ref(false);
 const activeFilter = ref<string>('');
+const contentWidth = ref(0);
+const columnCount = computed(() =>
+  Math.max(1, Math.min(5, Math.floor(contentWidth.value / 400))),
+);
+
+let resizeObs: ResizeObserver | undefined;
+onMounted(() => {
+  const el = document.querySelector('.main-content');
+  if (el) {
+    contentWidth.value = el.clientWidth;
+    resizeObs = new ResizeObserver(([e]) => { contentWidth.value = e.contentRect.width });
+    resizeObs.observe(el);
+  }
+});
+onUnmounted(() => resizeObs?.disconnect());
+
+function skeletonRows(col: number) {
+  const total = 5;
+  const perCol = Math.ceil(total / columnCount.value);
+  return col <= (total % columnCount.value || columnCount.value) ? perCol : perCol - 1;
+}
+
+const masonryColumns = computed(() => {
+  const cols: (typeof links.value)[] = Array.from({ length: columnCount.value }, () => []);
+  links.value.forEach((link, i) => cols[i % columnCount.value].push(link));
+  return cols;
+});
 
 const filters = [
   { label: '全部', value: '' },
@@ -127,17 +158,16 @@ async function handleDelete(id: number) {
   border-radius: 6px; font-size: 13px; cursor: pointer; color: #64748b;
 }
 .filter-btn.active { background: #6366f1; color: white; border-color: #6366f1; }
-.link-list {
-  columns: 3;
-  column-gap: 12px;
+.masonry {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
 }
-
-@media (max-width: 899px) {
-  .link-list { columns: 2; }
-}
-
-@media (max-width: 599px) {
-  .link-list { columns: 1; }
+.masonry-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .empty-state { text-align: center; color: #94a3b8; padding: 40px; }
