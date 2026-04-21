@@ -24,6 +24,9 @@
               :disabled="analyzing">
               {{ analyzing ? '摘要生成中...' : (detail.ai ? '重新生成摘要' : 'AI 摘要') }}
             </button>
+            <button v-if="detail.content" class="btn-secondary" @click="showAiProcessModal = true">
+              AI 整理
+            </button>
             <button v-if="detail.content && !isEditing" class="btn-secondary" @click="isEditing = true">
               编辑
             </button>
@@ -64,6 +67,30 @@
         </div>
       </template>
     </template>
+
+    <!-- AI 整理选项弹窗 -->
+    <div v-if="showAiProcessModal" class="modal-overlay" @click.self="showAiProcessModal = false">
+      <div class="modal-content">
+        <h3>选择 AI 处理方式</h3>
+        <button class="modal-option" @click="handleAiProcess('organize')">
+          <strong>AI 整理内容</strong>
+          <span>清理排版、去除冗余、补全结构</span>
+        </button>
+        <button class="modal-option" @click="handleAiProcess('expand')">
+          <strong>AI 扩展内容</strong>
+          <span>基于当前内容搜索并扩展补充</span>
+        </button>
+        <button class="modal-option" @click="handleAiProcess('both')">
+          <strong>整理并扩展</strong>
+          <span>先整理后扩展，完整处理</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- AI 处理中提示 -->
+    <div v-if="aiProcessing" class="ai-processing-hint">
+      {{ aiProcessingText }}
+    </div>
   </div>
 </template>
 
@@ -90,6 +117,31 @@ const tagsStore = useTagsStore();
 const contentTags = ref<TagWithCount[]>([]);
 const isEditing = ref(false);
 const autoAnalyzing = ref(false);
+const showAiProcessModal = ref(false);
+const aiProcessing = ref(false);
+const aiProcessingText = ref('');
+
+const modeLabels: Record<string, string> = {
+  organize: 'AI 整理中...',
+  expand: 'AI 扩展中...',
+  both: 'AI 整理并扩展中...',
+};
+
+async function handleAiProcess(mode: string) {
+  if (!detail.value?.content) return;
+  showAiProcessModal.value = false;
+  aiProcessingText.value = modeLabels[mode] || '处理中...';
+  aiProcessing.value = true;
+  try {
+    await api.aiProcessContent(detail.value.content.id, mode);
+    toast.show('AI 处理完成', 'success');
+    await fetchDetail();
+  } catch {
+    toast.show('AI 处理失败', 'error');
+  } finally {
+    aiProcessing.value = false;
+  }
+}
 
 onMounted(async () => {
   await fetchDetail();
@@ -450,5 +502,76 @@ const renderedMarkdown = computed(() => {
   background: #f0f0ff;
   border-radius: 8px;
   margin-bottom: 16px;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  width: 360px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+.modal-content h3 {
+  font-size: 16px;
+  margin-bottom: 16px;
+  color: #1e293b;
+}
+
+.modal-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s;
+}
+
+.modal-option:hover {
+  border-color: #6366f1;
+}
+
+.modal-option:last-child {
+  margin-bottom: 0;
+}
+
+.modal-option strong {
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.modal-option span {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.ai-processing-hint {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #6366f1;
+  color: white;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 </style>

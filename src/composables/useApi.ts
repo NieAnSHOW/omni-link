@@ -71,5 +71,8 @@ export function useApi() {
       invoke<boolean>('update_content_cmd', {
         input: { id, title, body_text: bodyText, body_html: bodyHtml },
       }),
+
+    aiProcessContent: (contentId: number, mode: string) =>
+      invoke<{ success: boolean }>('ai_process_content_cmd', { contentId, mode }),
   };
 }
