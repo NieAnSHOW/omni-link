@@ -31,7 +31,7 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
         CREATE TABLE IF NOT EXISTS tags (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
-            color TEXT DEFAULT '#6366f1',
+            color TEXT DEFAULT '#8b9dc3',
             type TEXT DEFAULT 'manual' CHECK(type IN ('auto','manual')),
             created_at TEXT DEFAULT (datetime('now'))
         );
