@@ -95,7 +95,8 @@ pub async fn analyze_content(config: &AiConfig, text: &str, title: Option<&str>)
 
     match result {
         Ok(val) => Ok(val),
-        Err(_) => {
+        Err(e) => {
+            eprintln!("AI provider failed: {}, falling back to rule-based provider", e);
             let fallback = FallbackProvider::new();
             fallback.generate_summary(text, title).await
         }
@@ -127,7 +128,8 @@ pub async fn organize_content(config: &AiConfig, text: &str) -> AppResult<serde_
 
     match result {
         Ok(val) => Ok(val),
-        Err(_) => {
+        Err(e) => {
+            eprintln!("AI provider failed: {}, falling back to rule-based provider", e);
             let fallback = FallbackProvider::new();
             fallback.process_content(text, "organize", None).await
         }
@@ -135,7 +137,12 @@ pub async fn organize_content(config: &AiConfig, text: &str) -> AppResult<serde_
 }
 
 pub async fn expand_content(config: &AiConfig, text: &str, title: Option<&str>) -> AppResult<serde_json::Value> {
-    let search_context = search_related_content(title, text).await.unwrap_or_default();
+    let search_context = search_related_content(title, text).await.unwrap_or_else(|e| {
+        eprintln!("Search failed: {}, continuing without context", e);
+        String::new()
+    });
+
+    let ctx = if search_context.is_empty() { None } else { Some(search_context.as_str()) };
 
     let result = match config.provider.as_str() {
         "openai" => {
@@ -144,58 +151,96 @@ pub async fn expand_content(config: &AiConfig, text: &str, title: Option<&str>) 
                 &config.openai.base_url,
                 &config.openai.model,
             );
-            provider.process_content(text, "expand", Some(&search_context)).await
+            provider.process_content(text, "expand", ctx).await
         }
         "ollama" => {
             let provider = OllamaProvider::new(
                 &config.ollama.base_url,
                 &config.ollama.model,
             );
-            provider.process_content(text, "expand", Some(&search_context)).await
+            provider.process_content(text, "expand", ctx).await
         }
         _ => {
             let provider = FallbackProvider::new();
-            provider.process_content(text, "expand", Some(&search_context)).await
+            provider.process_content(text, "expand", ctx).await
         }
     };
 
     match result {
         Ok(val) => Ok(val),
-        Err(_) => {
+        Err(e) => {
+            eprintln!("AI provider failed: {}, falling back to rule-based provider", e);
             let fallback = FallbackProvider::new();
-            fallback.process_content(text, "expand", Some(&search_context)).await
+            fallback.process_content(text, "expand", ctx).await
         }
     }
 }
 
 async fn search_related_content(title: Option<&str>, text: &str) -> Result<String, String> {
     use std::process::Command;
+    use std::time::Duration;
 
+    // SECURITY: Sanitize inputs to prevent shell injection
     let title_part = title.unwrap_or("");
     let text_preview: String = text.chars().take(100).collect();
-    let query = if title_part.is_empty() {
+    let raw_query = if title_part.is_empty() {
         text_preview
     } else {
         format!("{} {}", title_part, text_preview)
     };
 
-    let dispatcher_path = std::env::current_dir()
-        .map_err(|e| e.to_string())?
-        .join("src-tauri/skills/unified-search/dispatcher.py");
+    // Apply sanitization to prevent command injection
+    let query = sanitize_input(&raw_query);
 
-    let output = Command::new("python3")
-        .arg(&dispatcher_path)
-        .arg(&query)
-        .arg("--compact")
-        .output()
-        .map_err(|e| format!("Failed to execute dispatcher: {}", e))?;
+    // Use absolute path from app data directory instead of current_dir
+    let app_dir = std::env::current_exe()
+        .map_err(|e| format!("Failed to get executable path: {}", e))?
+        .parent()
+        .ok_or_else(|| "Failed to get parent directory".to_string())?
+        .to_path_buf();
+
+    let dispatcher_path = app_dir
+        .join("../src-tauri/skills/unified-search/dispatcher.py")
+        .canonicalize()
+        .or_else(|_| {
+            // Fallback for development mode
+            std::env::current_dir()
+                .map_err(|e| format!("Failed to get current dir: {}", e))?
+                .join("src-tauri/skills/unified-search/dispatcher.py")
+                .canonicalize()
+                .map_err(|e| format!("Failed to resolve dispatcher path: {}", e))
+        })?;
+
+    // Verify the script exists and is a Python file
+    if !dispatcher_path.exists() || dispatcher_path.extension().and_then(|s| s.to_str()) != Some("py") {
+        return Err(format!("Invalid dispatcher path: {:?}", dispatcher_path));
+    }
+
+    // Execute with timeout using tokio
+    let output = tokio::time::timeout(
+        Duration::from_secs(10),
+        tokio::task::spawn_blocking(move || {
+            Command::new("python3")
+                .arg(&dispatcher_path)
+                .arg(&query)
+                .arg("--compact")
+                .output()
+        })
+    )
+    .await
+    .map_err(|_| "Search timeout after 10 seconds".to_string())?
+    .map_err(|e| format!("Failed to spawn subprocess: {}", e))?
+    .map_err(|e| format!("Failed to execute dispatcher: {}", e))?;
 
     if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("Dispatcher failed with status {:?}: {}", output.status.code(), stderr);
         return Ok(String::new());
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap_or(serde_json::json!({}));
+    let json: serde_json::Value = serde_json::from_str(&stdout)
+        .map_err(|e| format!("Failed to parse dispatcher output: {}", e))?;
 
     let empty_vec = vec![];
     let results = json["results"].as_array().unwrap_or(&empty_vec);
