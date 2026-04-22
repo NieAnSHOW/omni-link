@@ -10,6 +10,9 @@
           :aria-current="isLinksActive ? 'page' : undefined">
           <span class="icon">📚</span> 知识库
         </router-link>
+        <router-link to="/notes" class="nav-item" active-class="active">
+          <span class="icon">📝</span> 笔记
+        </router-link>
         <router-link to="/tags" class="nav-item" active-class="active">
           <span class="icon">🧠</span> 智识图谱
         </router-link>
