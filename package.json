@@ -11,7 +11,10 @@
     "dev:all": "tauri dev"
   },
   "dependencies": {
+    "@types/markdown-it": "^14.1.2",
     "@vueuse/core": "^14.2.1",
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.1.1",
     "marked": "^18.0.2",
     "md-editor-v3": "^6.4.2",
     "pinia": "^3.0.4",
