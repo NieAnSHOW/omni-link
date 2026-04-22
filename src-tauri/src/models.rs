@@ -14,6 +14,7 @@ pub struct Link {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct Content {
     pub id: i64,
     pub link_id: i64,
@@ -40,6 +41,7 @@ pub struct ContentParsed {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct AiResult {
     pub id: i64,
     pub content_id: i64,
@@ -71,6 +73,7 @@ pub struct LinksResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct CreateLinkInput {
     pub url: String,
     #[allow(dead_code)]

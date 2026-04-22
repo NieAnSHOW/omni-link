@@ -3,11 +3,14 @@ use rusqlite::{params, Connection};
 use crate::error::AppResult;
 
 pub struct AiResultRow {
+    #[allow(dead_code)]
     pub id: i64,
+    #[allow(dead_code)]
     pub content_id: i64,
     pub summary: Option<String>,
     pub tags: String,
     pub provider: Option<String>,
+    #[allow(dead_code)]
     pub created_at: String,
 }
 

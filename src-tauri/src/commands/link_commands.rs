@@ -207,7 +207,7 @@ pub async fn start_ai_process(
                 }
                 _ => {
                     tracing::error!("Unknown AI processing mode: {}", mode);
-                    Err(crate::error::AppError::Ai(format!("Unknown mode: {}", mode)).into())
+                    Err(crate::error::AppError::Ai(format!("Unknown mode: {}", mode)))
                 }
             };
 

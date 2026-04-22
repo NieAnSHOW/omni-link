@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use tauri::State;
 
-use crate::config::{self, AiConfig, AppConfig, ConfigState};
+use crate::config::{self, AiConfig, ConfigState};
 use crate::db::DbState;
 use crate::error::AppResult;
 use crate::repositories::settings_repo;

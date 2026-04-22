@@ -63,7 +63,7 @@ pub fn create_note(conn: &Connection, title: &str) -> AppResult<Note> {
 
 pub fn get_note_by_id(conn: &Connection, id: i64) -> AppResult<Option<Note>> {
     let mut stmt = conn.prepare("SELECT * FROM notes WHERE id = ?")?;
-    let note = stmt.query_row(params![id], |row| row_to_note(row)).ok();
+    let note = stmt.query_row(params![id], row_to_note).ok();
     Ok(note)
 }
 
@@ -71,7 +71,7 @@ pub fn list_notes(conn: &Connection, limit: i64, offset: i64) -> AppResult<Vec<N
     let mut stmt = conn.prepare(
         "SELECT * FROM notes ORDER BY updated_at DESC LIMIT ? OFFSET ?",
     )?;
-    let rows = stmt.query_map(params![limit, offset], |row| row_to_note(row))?;
+    let rows = stmt.query_map(params![limit, offset], row_to_note)?;
     let mut notes = Vec::new();
     for row in rows {
         notes.push(row?);

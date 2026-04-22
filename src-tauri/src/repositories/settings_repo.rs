@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use crate::error::AppResult;
 
+#[allow(dead_code)]
 pub fn get_setting(conn: &Connection, key: &str) -> AppResult<Option<String>> {
     let result = conn.query_row(
         "SELECT value FROM user_settings WHERE key = ?",
@@ -16,6 +17,7 @@ pub fn get_setting(conn: &Connection, key: &str) -> AppResult<Option<String>> {
     }
 }
 
+#[allow(dead_code)]
 pub fn set_setting(conn: &Connection, key: &str, value: &str) -> AppResult<()> {
     conn.execute(
         "INSERT INTO user_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",

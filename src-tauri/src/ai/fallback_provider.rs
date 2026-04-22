@@ -21,6 +21,7 @@ impl FallbackProvider {
         Self
     }
 
+    #[allow(dead_code)]
     pub async fn is_available(&self) -> bool {
         true
     }
@@ -92,7 +93,7 @@ fn extract_keywords(text: &str, top_n: usize) -> Vec<String> {
     }
 
     let mut entries: Vec<_> = freq.into_iter().collect();
-    entries.sort_by(|a, b| b.1.cmp(&a.1));
+    entries.sort_by_key(|b| std::cmp::Reverse(b.1));
     entries.into_iter().take(top_n).map(|(w, _)| w).collect()
 }
 

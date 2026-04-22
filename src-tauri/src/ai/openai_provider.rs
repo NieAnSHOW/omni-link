@@ -37,6 +37,7 @@ impl OpenAiProvider {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn is_available(&self) -> bool {
         self.client
             .get(format!("{}/models", self.base_url))
@@ -114,7 +115,7 @@ impl OpenAiProvider {
     pub async fn process_content(&self, text: &str, mode: &str, search_context: Option<&str>) -> AppResult<serde_json::Value> {
         // SECURITY FIX: Sanitize inputs to prevent prompt injection
         let sanitized_text = sanitize_input(text);
-        let sanitized_search = search_context.map(|s| sanitize_input(s));
+        let sanitized_search = search_context.map(sanitize_input);
 
         // TRUNCATION FIX: Track if content was truncated
         let (truncated, was_truncated) = safe_truncate_with_info(&sanitized_text, 12000);
