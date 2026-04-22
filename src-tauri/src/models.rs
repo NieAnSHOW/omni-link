@@ -111,3 +111,20 @@ pub struct UpdateContentInput {
     pub body_text: Option<String>,
     pub body_html: Option<String>,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Note {
+    pub id: i64,
+    pub title: String,
+    pub file_name: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub file_size: i64,
+    pub word_count: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NoteDetail {
+    pub note: Note,
+    pub content: String,
+}
