@@ -1,6 +1,6 @@
 use rusqlite::{params, Connection, Row};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::error::{AppError, AppResult};
 use crate::models::Note;
@@ -24,12 +24,25 @@ fn get_notes_dir(conn: &Connection) -> AppResult<PathBuf> {
     Ok(PathBuf::from(expanded))
 }
 
+fn validate_filename(filename: &str) -> AppResult<()> {
+    if filename.contains('/') || filename.contains('\\') || filename.contains("..") {
+        return Err(AppError::Parse(format!("Invalid filename: {}", filename)));
+    }
+    Ok(())
+}
+
+fn safe_join(base: &Path, filename: &str) -> AppResult<PathBuf> {
+    validate_filename(filename)?;
+    Ok(base.join(filename))
+}
+
 pub fn create_note(conn: &Connection, title: &str) -> AppResult<Note> {
     let timestamp = chrono::Utc::now().timestamp();
+    let temp_file_name = format!("note_{}_temp.md", timestamp);
 
     conn.execute(
         "INSERT INTO notes (title, file_name) VALUES (?, ?)",
-        params![title, ""],
+        params![title, temp_file_name],
     )?;
 
     let id = conn.last_insert_rowid();
@@ -42,7 +55,7 @@ pub fn create_note(conn: &Connection, title: &str) -> AppResult<Note> {
 
     let notes_dir = get_notes_dir(conn)?;
     fs::create_dir_all(&notes_dir)?;
-    let file_path = notes_dir.join(&file_name);
+    let file_path = safe_join(&notes_dir, &file_name)?;
     fs::write(&file_path, "")?;
 
     get_note_by_id(conn, id)?.ok_or_else(|| AppError::NotFound("Note not found".into()))
@@ -69,7 +82,7 @@ pub fn list_notes(conn: &Connection, limit: i64, offset: i64) -> AppResult<Vec<N
 pub fn read_note_content(conn: &Connection, id: i64) -> AppResult<String> {
     let note = get_note_by_id(conn, id)?.ok_or_else(|| AppError::NotFound("Note not found".into()))?;
     let notes_dir = get_notes_dir(conn)?;
-    let file_path = notes_dir.join(&note.file_name);
+    let file_path = safe_join(&notes_dir, &note.file_name)?;
 
     if !file_path.exists() {
         return Err(AppError::NotFound(format!("Note file not found: {}", note.file_name)));
@@ -82,7 +95,7 @@ pub fn read_note_content(conn: &Connection, id: i64) -> AppResult<String> {
 pub fn update_note(conn: &Connection, id: i64, title: &str, content: &str) -> AppResult<()> {
     let note = get_note_by_id(conn, id)?.ok_or_else(|| AppError::NotFound("Note not found".into()))?;
     let notes_dir = get_notes_dir(conn)?;
-    let file_path = notes_dir.join(&note.file_name);
+    let file_path = safe_join(&notes_dir, &note.file_name)?;
 
     fs::write(&file_path, content)?;
 
@@ -100,7 +113,7 @@ pub fn update_note(conn: &Connection, id: i64, title: &str, content: &str) -> Ap
 pub fn delete_note(conn: &Connection, id: i64) -> AppResult<()> {
     let note = get_note_by_id(conn, id)?.ok_or_else(|| AppError::NotFound("Note not found".into()))?;
     let notes_dir = get_notes_dir(conn)?;
-    let file_path = notes_dir.join(&note.file_name);
+    let file_path = safe_join(&notes_dir, &note.file_name)?;
 
     if file_path.exists() {
         fs::remove_file(&file_path)?;

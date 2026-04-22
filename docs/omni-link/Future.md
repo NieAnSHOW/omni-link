@@ -26,6 +26,10 @@
 
 使用 “女娲” skills 自制人格
 
+### 网络搜索
+
+在设置中可视化配置搜索引擎，配置的路径在 src-tauri/skills/unified-search/config.example.json
+
 
 
 ### 分段内容读取优化
