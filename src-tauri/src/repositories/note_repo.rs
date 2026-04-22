@@ -119,7 +119,8 @@ pub fn delete_note(conn: &Connection, id: i64) -> AppResult<()> {
         fs::remove_file(&file_path)?;
     }
 
-    let images_dir = notes_dir.join("images").join(id.to_string());
+    let images_base = notes_dir.join("images");
+    let images_dir = safe_join(&images_base, &id.to_string())?;
     if images_dir.exists() {
         fs::remove_dir_all(&images_dir)?;
     }
