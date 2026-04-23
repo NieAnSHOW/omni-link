@@ -8,6 +8,22 @@
 
 为 OmniLink 添加"人格系统"功能，允许用户使用不同的"人格 skills"（如房琪 kiki、雷探长、花叔等）来重构笔记内容。核心思想是借用用户本地已安装的 Claude Code CLI 工具及其 skills，通过内嵌终端的方式实现自动化调用。
 
+### 1.1 内置人格
+
+OmniLink 将在 `src-tauri/skills/` 目录下内置以下人格 skills：
+
+- **房琪 kiki**（fangqikiki-perspective）- 旅游攻略类
+- **雷探长**（leitanzhang-perspective）- 旅游攻略类  
+- **花叔**（huashu-perspective）- 技术类
+- **女娲**（nuwa-skill）- 人格生成器（不可直接调用）
+
+**Why:** 内置人格确保用户首次使用时就有可用的人格选项，无需额外安装。
+
+**How to apply:** 
+1. 将这些 skill 文件放在 `src-tauri/skills/` 目录
+2. 在应用启动时，自动将内置 skills 复制到用户的 `~/.claude/plugins/cache/omnilink-builtin/skills/` 目录
+3. 扫描人格时同时扫描内置目录和用户本地 Claude Code 的 skills 目录
+
 ## 二、核心设计决策
 
 ### 2.1 CLI 调用方式
@@ -67,6 +83,8 @@
 - 人格选择对话框（智能/手动 Tab 切换）
 - 只支持手动选择模式
 - 全自动执行流程
+- **内置 4 个人格 skills**（房琪 kiki、雷探长、花叔、女娲）
+- 应用启动时自动复制内置 skills 到用户目录
 
 **Phase 2（1-2 周）：人格商店**
 - 独立的人格管理页面
@@ -104,7 +122,15 @@
 - `terminal/session.rs` - 终端会话管理
 - `persona/scanner.rs` - 扫描本地 skills 目录
 - `persona/repository.rs` - 人格数据持久化
+- `persona/builtin.rs` - 内置人格管理（复制到用户目录）
 - `cli/executor.rs` - Claude Code 命令执行器
+
+**内置 Skills 目录：**
+- `src-tauri/skills/` - 存放内置人格 skill 文件
+  - `fangqikiki-perspective.md`
+  - `leitanzhang-perspective.md`
+  - `huashu-perspective.md`
+  - `nuwa-skill.md`
 
 ## 五、数据模型
 
@@ -189,6 +215,45 @@ CREATE TABLE terminal_sessions (
 
 ## 六、Phase 1 核心功能流程
 
+### 6.0 应用启动时初始化内置人格
+
+**Rust 后端逻辑：**
+
+```rust
+// src-tauri/src/persona/builtin.rs
+pub fn initialize_builtin_skills() -> Result<()> {
+    let home = dirs::home_dir().ok_or("无法获取 home 目录")?;
+    let target_dir = home.join(".claude/plugins/cache/omnilink-builtin/skills");
+    
+    // 创建目标目录
+    fs::create_dir_all(&target_dir)?;
+    
+    // 获取内置 skills 源目录（打包在应用中）
+    let builtin_skills = [
+        ("fangqikiki-perspective.md", include_str!("../skills/fangqikiki-perspective.md")),
+        ("leitanzhang-perspective.md", include_str!("../skills/leitanzhang-perspective.md")),
+        ("huashu-perspective.md", include_str!("../skills/huashu-perspective.md")),
+        ("nuwa-skill.md", include_str!("../skills/nuwa-skill.md")),
+    ];
+    
+    // 复制文件（如果不存在或版本更新）
+    for (filename, content) in builtin_skills {
+        let target_path = target_dir.join(filename);
+        
+        // 只在文件不存在时复制，避免覆盖用户修改
+        if !target_path.exists() {
+            fs::write(target_path, content)?;
+        }
+    }
+    
+    Ok(())
+}
+```
+
+**Why:** 使用 `include_str!` 宏将 skill 文件内容编译到二进制中，确保内置人格始终可用，不依赖外部文件。
+
+**How to apply:** 在 `main.rs` 的 `setup` 钩子中调用 `initialize_builtin_skills()`，确保应用启动时就完成初始化。
+
 ### 6.1 用户点击"人格撰写"按钮
 
 1. 前端弹出 `PersonaDialog` 组件
@@ -203,41 +268,64 @@ CREATE TABLE terminal_sessions (
 ```rust
 // src-tauri/src/persona/scanner.rs
 pub fn scan_local_skills() -> Result<Vec<Persona>> {
+    let mut personas = Vec::new();
+    
+    // 1. 扫描内置人格（优先）
+    let builtin_dir = get_builtin_skills_dir()?;
+    personas.extend(scan_skills_directory(&builtin_dir, true)?);
+    
+    // 2. 扫描用户本地 Claude Code skills
     let home = dirs::home_dir().ok_or("无法获取 home 目录")?;
     let skills_dir = home.join(".claude/plugins/cache");
     
-    let mut personas = Vec::new();
-    
-    // 遍历所有插件目录
-    for entry in fs::read_dir(skills_dir)? {
-        let plugin_dir = entry?.path();
-        let skills_path = plugin_dir.join("skills");
-        
-        if !skills_path.exists() {
-            continue;
-        }
-        
-        // 查找 *-perspective.md 文件
-        for skill_file in fs::read_dir(skills_path)? {
-            let path = skill_file?.path();
-            let filename = path.file_name().unwrap().to_str().unwrap();
+    if skills_dir.exists() {
+        for entry in fs::read_dir(skills_dir)? {
+            let plugin_dir = entry?.path();
+            let skills_path = plugin_dir.join("skills");
             
-            // 排除女娲
-            if filename.ends_with("-perspective.md") && filename != "nuwa-skill.md" {
-                if let Ok(persona) = parse_skill_file(&path) {
-                    personas.push(persona);
-                }
+            if skills_path.exists() {
+                personas.extend(scan_skills_directory(&skills_path, false)?);
             }
         }
     }
     
     Ok(personas)
 }
+
+fn scan_skills_directory(dir: &Path, is_builtin: bool) -> Result<Vec<Persona>> {
+    let mut personas = Vec::new();
+    
+    for skill_file in fs::read_dir(dir)? {
+        let path = skill_file?.path();
+        let filename = path.file_name().unwrap().to_str().unwrap();
+        
+        // 排除女娲
+        if filename.ends_with("-perspective.md") && filename != "nuwa-skill.md" {
+            if let Ok(mut persona) = parse_skill_file(&path) {
+                persona.is_builtin = is_builtin;
+                personas.push(persona);
+            }
+        }
+    }
+    
+    Ok(personas)
+}
+
+// 获取内置 skills 目录（应用启动时已复制到用户目录）
+fn get_builtin_skills_dir() -> Result<PathBuf> {
+    let home = dirs::home_dir().ok_or("无法获取 home 目录")?;
+    Ok(home.join(".claude/plugins/cache/omnilink-builtin/skills"))
+}
 ```
 
-**Why:** 直接从用户本地 skills 目录读取，自动同步用户已安装的所有人格 skills，无需手动维护。
+**Why:** 
+1. 内置人格确保首次使用时就有可用选项
+2. 同时支持用户本地 Claude Code 的 skills，实现扩展性
+3. 通过 `is_builtin` 标记区分内置和用户安装的人格
 
-**How to apply:** 每次打开人格选择对话框时都重新扫描，确保列表是最新的。
+**How to apply:** 
+1. 应用启动时调用 `copy_builtin_skills()` 将 `src-tauri/skills/` 复制到 `~/.claude/plugins/cache/omnilink-builtin/skills/`
+2. 每次打开人格选择对话框时重新扫描，确保列表最新
 
 ### 6.3 用户选择人格并确认
 
@@ -461,7 +549,9 @@ dirs = "5.0"
 ## 十、开发时间线
 
 **Phase 1（2-3 周）：**
-- Week 1: PTY 管理 + 终端组件
+- Week 1: 
+  - 内置 skills 管理（复制到用户目录）
+  - PTY 管理 + 终端组件
 - Week 2: 人格扫描 + 选择对话框
 - Week 3: 集成测试 + Bug 修复
 
