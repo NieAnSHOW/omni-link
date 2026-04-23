@@ -30,3 +30,5 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 tracing-appender = "0.2"
 shellexpand = "3.1"
+portable-pty = "0.8"
+uuid = { version = "1.0", features = ["v4"] }

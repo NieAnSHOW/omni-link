@@ -77,7 +77,28 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
         CREATE INDEX IF NOT EXISTS idx_links_created ON links(created_at);
         CREATE INDEX IF NOT EXISTS idx_contents_link ON contents(link_id);
         CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON notes(updated_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at DESC);",
+        CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS personas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            skill_name TEXT NOT NULL UNIQUE,
+            category TEXT NOT NULL,
+            description TEXT,
+            is_builtin INTEGER DEFAULT 0,
+            is_installed INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS terminal_sessions (
+            id TEXT PRIMARY KEY,
+            note_id INTEGER NOT NULL,
+            persona_skill TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'running',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (note_id) REFERENCES notes(id)
+        );",
     )?;
 
     // Migrate existing DB
