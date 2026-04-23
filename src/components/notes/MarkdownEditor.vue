@@ -34,7 +34,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { MdEditor } from 'md-editor-v3'
+import { MdEditor, type ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 
 interface Props {
@@ -55,23 +55,23 @@ const emit = defineEmits<{
 const localTitle = ref(props.title)
 const localContent = ref(props.content)
 
-const toolbars = [
+const toolbars: Array<ToolbarNames | number> = [
   'bold',
   'italic',
   'strikeThrough',
   'title',
-  '|',
+  -1,
   'quote',
   'unorderedList',
   'orderedList',
   'task',
-  '|',
+  -1,
   'codeRow',
   'code',
   'link',
   'image',
   'table',
-  '|',
+  -1,
   'revoke',
   'next',
   'preview',
