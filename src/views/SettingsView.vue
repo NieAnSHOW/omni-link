@@ -1,62 +1,82 @@
 <template>
-  <div class="settings-view">
-    <h2>设置</h2>
+  <div class="flex min-h-full flex-col gap-6 p-6">
+    <h2 class="text-xl font-semibold tracking-tight">设置</h2>
 
-    <section class="setting-section">
-      <h3>AI 配置</h3>
-      <p class="hint">配置文件位置：~/.omnilink/config.json</p>
-
-      <div class="form-group">
-        <label>AI Provider</label>
-        <select v-model="aiConfig.provider" @change="onProviderChange">
-          <option value="openai">OpenAI</option>
-          <option value="ollama">Ollama (本地)</option>
-          <option value="fallback">离线模式（规则引擎）</option>
-        </select>
-      </div>
-
-      <template v-if="aiConfig.provider === 'openai'">
-        <div class="form-group">
-          <label>API Key</label>
-          <input v-model="aiConfig.apiKey" type="password" placeholder="sk-..." />
+    <!-- AI 配置 -->
+    <Card>
+      <CardHeader>
+        <CardTitle>AI 配置</CardTitle>
+        <CardDescription>配置文件位置：~/.omnilink/config.json</CardDescription>
+      </CardHeader>
+      <CardContent class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm text-muted-foreground">AI Provider</label>
+          <select
+            v-model="aiConfig.provider"
+            @change="onProviderChange"
+            class="flex h-8 w-full rounded-lg border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="openai">OpenAI</option>
+            <option value="ollama">Ollama (本地)</option>
+            <option value="fallback">离线模式（规则引擎）</option>
+          </select>
         </div>
-        <div class="form-group">
-          <label>Base URL（可选，支持自定义 endpoint）</label>
-          <input v-model="aiConfig.baseUrl" placeholder="https://api.openai.com/v1" />
-        </div>
-        <div class="form-group">
-          <label>模型</label>
-          <input v-model="aiConfig.model" placeholder="gpt-4o-mini" />
-        </div>
-      </template>
 
-      <template v-if="aiConfig.provider === 'ollama'">
-        <div class="form-group">
-          <label>Ollama 地址</label>
-          <input v-model="aiConfig.baseUrl" placeholder="http://localhost:11434" />
-        </div>
-        <div class="form-group">
-          <label>模型</label>
-          <input v-model="aiConfig.model" placeholder="llama3.2" />
-        </div>
-      </template>
+        <template v-if="aiConfig.provider === 'openai'">
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm text-muted-foreground">API Key</label>
+            <Input v-model="aiConfig.apiKey" type="password" placeholder="sk-..." />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm text-muted-foreground">Base URL（可选，支持自定义 endpoint）</label>
+            <Input v-model="aiConfig.baseUrl" placeholder="https://api.openai.com/v1" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm text-muted-foreground">模型</label>
+            <Input v-model="aiConfig.model" placeholder="gpt-4o-mini" />
+          </div>
+        </template>
 
-      <button class="btn-primary" @click="saveAiSettings" :disabled="saving">
-        {{ saving ? '保存中...' : '保存 AI 配置' }}
-      </button>
-      <span v-if="saved" class="saved-hint">已保存</span>
-    </section>
+        <template v-if="aiConfig.provider === 'ollama'">
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm text-muted-foreground">Ollama 地址</label>
+            <Input v-model="aiConfig.baseUrl" placeholder="http://localhost:11434" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm text-muted-foreground">模型</label>
+            <Input v-model="aiConfig.model" placeholder="llama3.2" />
+          </div>
+        </template>
 
-    <section class="setting-section">
-      <h3>数据</h3>
-      <p class="hint">数据存储位置：~/.omnilink/omnilink.db</p>
-    </section>
+        <div class="flex items-center gap-3 pt-2">
+          <Button @click="saveAiSettings" :disabled="saving">
+            {{ saving ? '保存中...' : '保存 AI 配置' }}
+          </Button>
+          <span v-if="saved" class="text-sm text-emerald-500">已保存</span>
+        </div>
+      </CardContent>
+    </Card>
+
+    <!-- 数据信息 -->
+    <Card>
+      <CardHeader>
+        <CardTitle>数据</CardTitle>
+        <CardDescription>数据存储位置：~/.omnilink/omnilink.db</CardDescription>
+      </CardHeader>
+    </Card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import { useApi } from '../composables/useApi';
+import Card from '@/components/ui/card/Card.vue';
+import CardHeader from '@/components/ui/card/CardHeader.vue';
+import CardTitle from '@/components/ui/card/CardTitle.vue';
+import CardDescription from '@/components/ui/card/CardDescription.vue';
+import CardContent from '@/components/ui/card/CardContent.vue';
+import Input from '@/components/ui/input/Input.vue';
+import Button from '@/components/ui/button/Button.vue';
 
 const api = useApi();
 const saving = ref(false);
@@ -118,28 +138,3 @@ async function saveAiSettings() {
   }
 }
 </script>
-
-<style scoped>
-.settings-view { width: 100%; }
-h2 { font-size: 22px; margin-bottom: 24px; }
-.setting-section {
-  background: #f8f9fa; border-radius: 10px;
-  padding: 20px; margin-bottom: 16px;
-}
-.setting-section h3 { font-size: 16px; margin-bottom: 16px; }
-.form-group { margin-bottom: 14px; }
-.form-group label { display: block; font-size: 13px; color: #64748b; margin-bottom: 4px; }
-.form-group input, .form-group select {
-  width: 100%; padding: 8px 12px;
-  border: 1px solid #d1d5db; border-radius: 6px;
-  font-size: 14px;
-}
-.btn-primary {
-  padding: 8px 16px; background: #6366f1; color: white;
-  border: none; border-radius: 8px; font-size: 14px; cursor: pointer;
-  margin-top: 8px;
-}
-.btn-primary:disabled { opacity: 0.5; }
-.saved-hint { color: #10b981; font-size: 13px; margin-left: 8px; }
-.hint { color: #94a3b8; font-size: 13px; margin-bottom: 12px; }
-</style>
