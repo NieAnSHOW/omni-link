@@ -6,7 +6,9 @@ mod error;
 mod logger;
 mod models;
 mod parser;
+mod persona;
 mod repositories;
+mod terminal;
 
 use config::ConfigState;
 use db::DbState;
@@ -35,6 +37,9 @@ pub fn run() {
 
             app.manage(DbState(std::sync::Arc::new(std::sync::Mutex::new(conn))));
             app.manage(ConfigState(std::sync::Mutex::new(app_config)));
+
+            persona::initialize_builtin_skills()?;
+            tracing::info!("Built-in persona skills initialized");
 
             tracing::info!("OmniLink application setup completed");
             Ok(())
