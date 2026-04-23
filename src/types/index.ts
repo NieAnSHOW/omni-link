@@ -66,3 +66,5 @@ export interface NoteDetail {
   note: Note;
   content: string;
 }
+
+export * from './persona';
