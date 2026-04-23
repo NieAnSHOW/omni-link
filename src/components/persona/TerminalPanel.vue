@@ -22,10 +22,9 @@ const emit = defineEmits<{
   failed: [error: string];
 }>();
 
-const { updateSessionStatus, closeTerminalSession, resizeTerminal } = usePersona();
+const { updateSessionStatus, closeTerminalSession, resizeTerminal, startReading } = usePersona();
 
 const terminalRef = ref<HTMLElement | null>(null);
-const expanded = ref(true);
 const status = ref<'running' | 'completed' | 'failed'>('running');
 
 let terminal: Terminal | null = null;
@@ -93,6 +92,8 @@ const setupEventListeners = async () => {
       }
     }
   );
+
+  await startReading(props.sessionId);
 };
 
 const handleClose = async () => {
@@ -125,7 +126,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="border-t-2 border-primary bg-[#1e1e1e]">
+  <div class="flex h-full flex-col bg-[#1e1e1e]">
     <!-- Header bar -->
     <div class="flex items-center justify-between border-b border-[#3e3e3e] bg-[#2d2d2d] px-4 py-1.5">
       <div class="flex items-center gap-2">
@@ -138,36 +139,17 @@ onUnmounted(() => {
           {{ statusText }}
         </Badge>
       </div>
-      <div class="flex items-center gap-1">
-        <Button
-          v-if="status === 'completed' || status === 'failed'"
-          variant="ghost"
-          size="icon-xs"
-          class="text-[#a0a0a0] hover:text-[#d4d4d4]"
-          @click="handleClose"
-        >
-          <span class="text-xs">关闭</span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          class="text-[#a0a0a0] hover:text-[#d4d4d4]"
-          @click="expanded = !expanded"
-        >
-          {{ expanded ? '收起' : '展开' }}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          class="text-[#a0a0a0] hover:text-[#d4d4d4]"
-          @click="handleClose"
-        >
-          ✕
-        </Button>
-      </div>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        class="text-[#a0a0a0] hover:text-[#d4d4d4]"
+        @click="handleClose"
+      >
+        ✕
+      </Button>
     </div>
 
     <!-- Terminal body -->
-    <div v-show="expanded" ref="terminalRef" class="overflow-hidden p-2" style="max-height: 200px" />
+    <div ref="terminalRef" class="flex-1 overflow-hidden p-2" />
   </div>
 </template>

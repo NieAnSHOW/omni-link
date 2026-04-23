@@ -9,6 +9,9 @@
     <Button variant="secondary" @click="showPersonaDialog = true">
       ✨ 人格撰写
     </Button>
+    <Button v-if="showTerminal" variant="outline" @click="showTerminalDialog = true">
+      🖥️ 查看终端
+    </Button>
     <Button variant="destructive" @click="handleDelete">
       删除
     </Button>
@@ -26,22 +29,26 @@
       @update:model-value="handleContentChange" />
   </div>
 
-  <TerminalPanel
-    v-if="showTerminal"
-    :session-id="currentSessionId"
-    :note-id="noteDetail.note.id"
-    :persona-name="currentPersonaName"
-    @close="handleTerminalClose"
-    @completed="handleRewriteCompleted"
-    @failed="handleRewriteFailed"
-  />
-
   <PersonaDialog
     :open="showPersonaDialog"
     :note-id="noteDetail.note.id"
     @update:open="showPersonaDialog = $event"
     @confirm="handlePersonaConfirm"
   />
+
+  <Dialog :open="showTerminalDialog && showTerminal" @update:open="handleTerminalDialogChange">
+    <DialogContent class="flex h-[90vh] w-[95vw] max-w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:h-[90vh] sm:max-w-[95vw]">
+      <TerminalPanel
+        v-if="showTerminal"
+        :session-id="currentSessionId"
+        :note-id="noteDetail.note.id"
+        :persona-name="currentPersonaName"
+        @close="handleTerminalClose"
+        @completed="handleRewriteCompleted"
+        @failed="handleRewriteFailed"
+      />
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
@@ -53,6 +60,7 @@ import { notesApi } from '../../composables/useApi';
 import { useNotesStore } from '../../stores/notes';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import PersonaDialog from '@/components/persona/PersonaDialog.vue';
 import TerminalPanel from '@/components/persona/TerminalPanel.vue';
 import { usePersona } from '@/composables/usePersona';
@@ -72,6 +80,7 @@ const { startPersonaRewrite } = usePersona();
 
 const showPersonaDialog = ref(false);
 const showTerminal = ref(false);
+const showTerminalDialog = ref(false);
 const currentSessionId = ref('');
 const currentPersonaName = ref('');
 
@@ -104,17 +113,14 @@ async function handleSave() {
   saveStatus.value = null;
 
   try {
-    // 直接调用 API 保存，不触发 store 更新列表
     await notesApi.updateNote(props.noteDetail.note.id, localTitle.value, localContent.value);
 
     const updatedAt = new Date().toISOString();
 
-    // 只更新当前笔记的本地状态
     props.noteDetail.note.title = localTitle.value;
     props.noteDetail.content = localContent.value;
     props.noteDetail.note.updated_at = updatedAt;
 
-    // 同步更新列表中的标题
     const index = notesStore.notes.findIndex(n => n.id === props.noteDetail.note.id);
     if (index !== -1) {
       notesStore.notes[index].title = localTitle.value;
@@ -151,12 +157,13 @@ async function handlePersonaConfirm(persona: Persona) {
     const sessionId = await startPersonaRewrite({
       noteId: props.noteDetail.note.id,
       notePath,
-      personaSkill: persona.skillName,
+      personaSkill: persona.skill_name,
       mode: 'manual',
     });
     currentSessionId.value = sessionId;
     currentPersonaName.value = persona.name;
     showTerminal.value = true;
+    showTerminalDialog.value = true;
   } catch (error) {
     console.error('启动人格重构失败:', error);
   }
@@ -164,8 +171,15 @@ async function handlePersonaConfirm(persona: Persona) {
 
 function handleTerminalClose() {
   showTerminal.value = false;
+  showTerminalDialog.value = false;
   currentSessionId.value = '';
   currentPersonaName.value = '';
+}
+
+function handleTerminalDialogChange(open: boolean) {
+  if (!open) {
+    showTerminalDialog.value = false;
+  }
 }
 
 async function handleRewriteCompleted() {

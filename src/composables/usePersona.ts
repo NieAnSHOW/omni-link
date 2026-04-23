@@ -31,6 +31,10 @@ export function usePersona() {
     return await invoke<string>('start_persona_rewrite', { ...params });
   };
 
+  const startReading = async (sessionId: string): Promise<void> => {
+    await invoke('start_reading', { sessionId });
+  };
+
   const updateSessionStatus = async (sessionId: string, status: string): Promise<void> => {
     await invoke('update_session_status', { sessionId, status });
   };
@@ -54,6 +58,7 @@ export function usePersona() {
     savePersona,
     deletePersona,
     startPersonaRewrite,
+    startReading,
     updateSessionStatus,
     closeTerminalSession,
     resizeTerminal,

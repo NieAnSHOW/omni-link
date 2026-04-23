@@ -1,6 +1,8 @@
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use tauri::AppHandle;
+
 use crate::error::{AppError, AppResult};
 use super::session::PtySession;
 
@@ -17,6 +19,7 @@ impl PtyManager {
 
     pub fn create_session(
         &self,
+        _app_handle: AppHandle,
         session_id: String,
         note_id: i64,
         note_path: &str,
@@ -33,7 +36,20 @@ impl PtyManager {
             })
             .map_err(|e| AppError::Parse(e.to_string()))?;
 
-        let cmd = CommandBuilder::new("claude");
+        let reader = pair
+            .master
+            .try_clone_reader()
+            .map_err(|e| AppError::Parse(e.to_string()))?;
+
+        let command = format!(
+            "使用 {} 重构 {}，直接覆盖内容",
+            persona_skill, note_path
+        );
+
+        let mut cmd = CommandBuilder::new("claude");
+        cmd.arg("--dangerously-skip-permissions");
+        cmd.arg(&command);
+
         let child = pair
             .slave
             .spawn_command(cmd)
@@ -45,13 +61,11 @@ impl PtyManager {
             child,
             note_id,
             persona_skill: persona_skill.to_string(),
+            reader: Some(reader),
+            reader_handle: None,
         };
 
-        let command = format!(
-            "使用 {} 重构 {}，直接覆盖内容",
-            persona_skill, note_path
-        );
-        session.write_command(&command)?;
+        session.start_output_loop(_app_handle.clone())?;
 
         let mut sessions = self.sessions.lock().unwrap();
         sessions.insert(session_id, session);
@@ -64,10 +78,23 @@ impl PtyManager {
         sessions.get(session_id).map(|s| s.id.clone())
     }
 
+    pub fn start_reading(
+        &self,
+        app_handle: tauri::AppHandle,
+        session_id: &str,
+    ) -> AppResult<()> {
+        let mut sessions = self.sessions.lock().unwrap();
+        if let Some(session) = sessions.get_mut(session_id) {
+            session.start_output_loop(app_handle)?;
+        }
+        Ok(())
+    }
+
     pub fn close_session(&self, session_id: &str) -> AppResult<()> {
         let mut sessions = self.sessions.lock().unwrap();
         if let Some(mut session) = sessions.remove(session_id) {
             let _ = session.child.kill();
+            session.stop_reader();
         }
         Ok(())
     }

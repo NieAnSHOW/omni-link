@@ -26,42 +26,41 @@
 
     <!-- Main content -->
     <template v-else>
-      <StickyHeader :class="'pt-2'">
-        <div class="flex w-full flex-col gap-3">
-          <div class="flex items-start justify-between gap-4">
-            <h2 class="text-xl font-semibold leading-tight">{{ detail.link.title || '未命名' }}</h2>
-            <div class="flex shrink-0 gap-2">
-              <Button v-if="detail.link.status !== 'parsing'" @click="parseLink" :disabled="parsing">
-                {{ parsing ? '解析中...' : (detail.content ? '重新解析' : '解析内容') }}
-              </Button>
-              <Button v-if="detail.content" variant="outline" @click="analyzeContent" :disabled="analyzing">
-                {{ analyzing ? '摘要生成中...' : (detail.ai ? '重新生成摘要' : 'AI 摘要') }}
-              </Button>
-              <Button v-if="detail.content" variant="outline" @click="showAiProcessModal = true">
-                AI 整理
-              </Button>
-              <Button v-if="detail.content && !isEditing" variant="outline" @click="isEditing = true">
-                编辑
-              </Button>
-            </div>
+      <div class="flex w-full flex-col gap-3">
+        <div class="flex items-start justify-between gap-4">
+          <h2 class="text-xl font-semibold leading-tight">{{ detail.link.title || '未命名' }}</h2>
+          <div class="flex shrink-0 gap-2">
+            <Button v-if="detail.link.status !== 'parsing'" @click="parseLink" :disabled="parsing">
+              {{ parsing ? '解析中...' : (detail.content ? '重新解析' : '解析内容') }}
+            </Button>
+            <Button v-if="detail.content" variant="outline" @click="analyzeContent" :disabled="analyzing">
+              {{ analyzing ? '摘要生成中...' : (detail.ai ? '重新生成摘要' : 'AI 摘要') }}
+            </Button>
+            <Button v-if="detail.content" variant="outline" @click="showAiProcessModal = true">
+              AI 整理
+            </Button>
+            <Button v-if="detail.content && !isEditing" variant="outline" @click="isEditing = true">
+              编辑
+            </Button>
           </div>
-
-          <div class="flex items-center gap-3">
-            <Badge variant="secondary">{{ detail.link.platform || 'web' }}</Badge>
-            <a :href="detail.link.url" target="_blank" class="text-sm text-primary hover:underline">查看原文 &rarr;</a>
-          </div>
-
-          <TagInput v-if="detail.content" :model-value="contentTags" :all-tags="tagsStore.tags"
-            @update:model-value="handleTagsUpdate" />
-
-          <!-- AI summary card -->
-          <Card v-if="detail.ai" class="border-primary/10 bg-primary/5">
-            <CardContent class="p-4">
-              <p class="text-sm leading-relaxed"><span class="font-medium text-primary">AI 摘要：</span>{{ detail.ai.summary }}</p>
-            </CardContent>
-          </Card>
         </div>
-      </StickyHeader>
+
+        <div class="flex items-center gap-3">
+          <Badge variant="secondary">{{ detail.link.platform || 'web' }}</Badge>
+          <a :href="detail.link.url" target="_blank" class="text-sm text-primary hover:underline">查看原文 &rarr;</a>
+        </div>
+
+        <TagInput v-if="detail.content" :model-value="contentTags" :all-tags="tagsStore.tags"
+          @update:model-value="handleTagsUpdate" />
+
+        <!-- AI summary card -->
+        <Card v-if="detail.ai" class="border-primary/10 bg-primary/5">
+          <CardContent class="p-4">
+            <p class="text-sm leading-relaxed"><span class="font-medium text-primary">AI 摘要：</span>{{ detail.ai.summary
+              }}</p>
+          </CardContent>
+        </Card>
+      </div>
 
       <!-- Auto analyzing hint -->
       <div v-if="autoAnalyzing" class="mx-6 mt-4 rounded-lg bg-primary/5 px-4 py-3 text-center text-sm text-primary">
@@ -95,22 +94,19 @@
         <div class="flex flex-col gap-2">
           <button
             class="flex flex-col gap-1 rounded-lg border border-border bg-muted/50 p-3 text-left transition-colors hover:border-primary hover:bg-muted"
-            @click="handleAiProcess('organize')"
-          >
+            @click="handleAiProcess('organize')">
             <strong class="text-sm text-foreground">AI 整理内容</strong>
             <span class="text-xs text-muted-foreground">清理排版、去除冗余、补全结构</span>
           </button>
           <button
             class="flex flex-col gap-1 rounded-lg border border-border bg-muted/50 p-3 text-left transition-colors hover:border-primary hover:bg-muted"
-            @click="handleAiProcess('expand')"
-          >
+            @click="handleAiProcess('expand')">
             <strong class="text-sm text-foreground">AI 扩展内容</strong>
             <span class="text-xs text-muted-foreground">基于当前内容搜索并扩展补充</span>
           </button>
           <button
             class="flex flex-col gap-1 rounded-lg border border-border bg-muted/50 p-3 text-left transition-colors hover:border-primary hover:bg-muted"
-            @click="handleAiProcess('both')"
-          >
+            @click="handleAiProcess('both')">
             <strong class="text-sm text-foreground">整理并扩展</strong>
             <span class="text-xs text-muted-foreground">先整理后扩展，完整处理</span>
           </button>

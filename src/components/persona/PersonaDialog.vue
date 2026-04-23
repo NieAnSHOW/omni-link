@@ -95,16 +95,16 @@ watch(() => props.open, (open) => {
           <div v-else class="grid grid-cols-2 gap-2.5">
             <div
               v-for="persona in personas"
-              :key="persona.skillName"
+              :key="persona.skill_name"
               class="cursor-pointer rounded-lg border-2 p-3 transition-all hover:border-primary/50"
-              :class="selectedPersona?.skillName === persona.skillName
+              :class="selectedPersona?.skill_name === persona.skill_name
                 ? 'border-primary bg-primary/5 ring-1 ring-primary'
                 : 'border-border'"
               @click="selectedPersona = persona"
             >
               <div class="mb-1 flex items-center justify-between">
                 <h3 class="text-sm font-semibold">{{ persona.name }}</h3>
-                <Badge v-if="persona.isBuiltin" variant="secondary" class="text-[10px]">内置</Badge>
+                <Badge v-if="persona.is_builtin" variant="secondary" class="text-[10px]">内置</Badge>
               </div>
               <p class="mb-1 text-xs text-muted-foreground">{{ persona.category }}</p>
               <p class="line-clamp-2 text-xs text-foreground/70">{{ persona.description }}</p>

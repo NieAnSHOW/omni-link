@@ -1,34 +1,34 @@
 export interface Persona {
   id: number;
   name: string;
-  skillName: string;
+  skill_name: string;
   category: string;
   description: string;
-  isBuiltin: boolean;
-  isInstalled: boolean;
-  createdAt: string;
+  is_builtin: boolean;
+  is_installed: boolean;
+  created_at: string;
 }
 
 export interface CreatePersona {
   name: string;
-  skillName: string;
+  skill_name: string;
   category: string;
   description: string;
-  isBuiltin: boolean;
+  is_builtin: boolean;
 }
 
 export interface TerminalSession {
   id: string;
-  noteId: number;
-  personaSkill: string;
+  note_id: number;
+  persona_skill: string;
   mode: 'smart' | 'manual';
   status: 'running' | 'completed' | 'failed';
-  createdAt: string;
+  created_at: string;
 }
 
 export interface CreateTerminalSession {
-  noteId: number;
-  personaSkill: string;
+  note_id: number;
+  persona_skill: string;
   mode: 'smart' | 'manual';
 }
 

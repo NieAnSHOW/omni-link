@@ -1,50 +1,35 @@
 <template>
-  <Card class="flex h-full flex-col">
-    <CardHeader class="pb-4">
-      <div class="flex flex-col gap-3">
-        <Input
-          v-model="searchQuery"
-          placeholder="搜索笔记..."
-        />
-        <Button class="w-full" @click="$emit('create')">
-          + 新建笔记
-        </Button>
-      </div>
-    </CardHeader>
+  <div class="flex flex-col gap-3">
+    <Input v-model="searchQuery" placeholder="搜索笔记..." />
+    <Button class="w-full" @click="$emit('create')">
+      + 新建笔记
+    </Button>
+  </div>
 
-    <CardContent class="flex-1 overflow-y-auto p-0">
-      <div v-if="loading" class="px-4 py-8 text-center text-sm text-muted-foreground">
-        加载中...
+  <div v-if="loading" class="px-4 py-8 text-center text-sm text-muted-foreground">
+    加载中...
+  </div>
+  <div v-else-if="filteredNotes.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">
+    {{ searchQuery ? '未找到匹配的笔记' : '暂无笔记' }}
+  </div>
+  <div v-else class="flex flex-col">
+    <div v-for="note in filteredNotes" :key="note.id"
+      class="cursor-pointer border-b px-4 py-4 transition-colors last:border-b-0 hover:bg-muted/50" :class="{
+        'border-l-[3px] border-l-primary bg-primary/5': note.id === selectedId,
+      }" @click="$emit('select', note.id)">
+      <div class="mb-1.5 truncate text-[15px] font-medium text-foreground">
+        {{ note.title || '未命名笔记' }}
       </div>
-      <div v-else-if="filteredNotes.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">
-        {{ searchQuery ? '未找到匹配的笔记' : '暂无笔记' }}
+      <div class="text-xs text-muted-foreground">
+        {{ formatTime(note.updated_at) }}
       </div>
-      <div v-else class="flex flex-col">
-        <div
-          v-for="note in filteredNotes"
-          :key="note.id"
-          class="cursor-pointer border-b px-4 py-4 transition-colors last:border-b-0 hover:bg-muted/50"
-          :class="{
-            'border-l-[3px] border-l-primary bg-primary/5': note.id === selectedId,
-          }"
-          @click="$emit('select', note.id)"
-        >
-          <div class="mb-1.5 truncate text-[15px] font-medium text-foreground">
-            {{ note.title || '未命名笔记' }}
-          </div>
-          <div class="text-xs text-muted-foreground">
-            {{ formatTime(note.updated_at) }}
-          </div>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import type { Note } from '../../types/index';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 

@@ -76,6 +76,7 @@ pub fn run() {
             commands::persona_commands::save_persona,
             commands::persona_commands::delete_persona,
             commands::terminal_commands::start_persona_rewrite,
+            commands::terminal_commands::start_reading,
             commands::terminal_commands::update_session_status,
             commands::terminal_commands::close_terminal_session,
             commands::terminal_commands::resize_terminal,
