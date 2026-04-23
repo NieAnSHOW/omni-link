@@ -10,10 +10,10 @@
       />
       <div class="detail-actions">
         <button class="btn-save" @click="handleSave" :disabled="saving">
-          {{ saving ? '保存中...' : '保存' }}
+         保存
         </button>
         <button class="btn-ai" disabled title="功能开发中">
-          AI 整理
+          人格撰写
         </button>
         <button class="btn-delete" @click="handleDelete">
           删除
@@ -24,24 +24,25 @@
     <div class="detail-meta">
       <span>创建于 {{ formatDate(noteDetail.note.created_at) }}</span>
       <span>更新于 {{ formatDate(noteDetail.note.updated_at) }}</span>
-      <span>{{ noteDetail.note.word_count }} 字</span>
+      <span v-if="saveStatus" :class="saveStatus">{{ saveStatus === 'success' ? '已保存' : '保存失败' }}</span>
     </div>
 
-    <MarkdownEditor
+    <MdEditor
       v-model="localContent"
+      :language="'zh-CN'"
+      :style="{ height: 'calc(100vh - 200px)' }"
       @update:model-value="handleContentChange"
     />
-
-    <div v-if="saveStatus" class="save-status" :class="saveStatus">
-      {{ saveStatus === 'success' ? '已保存' : '保存失败' }}
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import type { NoteDetail } from '../../types/index';
-import MarkdownEditor from './MarkdownEditor.vue';
+import { MdEditor } from 'md-editor-v3';
+import 'md-editor-v3/lib/style.css';
+import { notesApi } from '../../composables/useApi';
+import { useNotesStore } from '../../stores/notes';
 
 interface Props {
   noteDetail: NoteDetail;
@@ -53,6 +54,7 @@ const emit = defineEmits<{
   delete: [id: number];
 }>();
 
+const notesStore = useNotesStore();
 const localTitle = ref(props.noteDetail.note.title);
 const localContent = ref(props.noteDetail.content);
 const saving = ref(false);
@@ -81,7 +83,23 @@ async function handleSave() {
   saveStatus.value = null;
 
   try {
-    emit('save', props.noteDetail.note.id, localTitle.value, localContent.value);
+    // 直接调用 API 保存，不触发 store 更新列表
+    await notesApi.updateNote(props.noteDetail.note.id, localTitle.value, localContent.value);
+
+    const updatedAt = new Date().toISOString();
+
+    // 只更新当前笔记的本地状态
+    props.noteDetail.note.title = localTitle.value;
+    props.noteDetail.content = localContent.value;
+    props.noteDetail.note.updated_at = updatedAt;
+
+    // 同步更新列表中的标题
+    const index = notesStore.notes.findIndex(n => n.id === props.noteDetail.note.id);
+    if (index !== -1) {
+      notesStore.notes[index].title = localTitle.value;
+      notesStore.notes[index].updated_at = updatedAt;
+    }
+
     saveStatus.value = 'success';
     setTimeout(() => {
       saveStatus.value = null;

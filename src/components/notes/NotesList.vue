@@ -27,7 +27,6 @@
         <div class="note-title">{{ note.title || '未命名笔记' }}</div>
         <div class="note-meta">
           <span class="note-time">{{ formatTime(note.updated_at) }}</span>
-          <span class="note-words">{{ note.word_count }} 字</span>
         </div>
       </div>
     </div>
