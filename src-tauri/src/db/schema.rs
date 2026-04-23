@@ -97,7 +97,7 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
             mode TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'running',
             created_at TEXT NOT NULL,
-            FOREIGN KEY (note_id) REFERENCES notes(id)
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
         );",
     )?;
 
