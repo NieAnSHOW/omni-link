@@ -1,28 +1,26 @@
-# 人格系统实现计划
+# 人格系统实施计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 为 OmniLink 添加人格系统功能，允许用户使用不同的人格 skills 重构笔记内容
 
-**Architecture:** 三层架构 - Vue 3 前端（对话框 + 终端组件）+ Tauri IPC 层（命令接口）+ Rust 后端（PTY 管理 + 人格扫描 + 内置 skills）
+**Architecture:** 三层架构 - Vue 3 前端（shadcn Dialog + 可折叠终端面板）+ Tauri IPC 层（命令接口）+ Rust 后端（PTY 管理 + 人格扫描 + 内置 skills）。前端已完成 Tailwind v4 + shadcn-vue 迁移，所有 UI 组件使用 shadcn 组件库和 Tailwind 类。
 
-**Tech Stack:** Tauri v2, Vue 3, TypeScript, Rust, portable-pty, xterm.js, SQLite
+**Tech Stack:** Tauri v2, Vue 3, TypeScript, Rust, shadcn-vue, Tailwind CSS v4, portable-pty, xterm.js, SQLite
 
 ---
 
 ## 文件结构
 
-本实现将创建和修改以下文件：
-
 **前端文件（创建）：**
-- `src/components/persona/PersonaDialog.vue` - 人格选择对话框
-- `src/components/persona/EmbeddedTerminal.vue` - 内嵌终端组件
 - `src/types/persona.ts` - 人格相关类型定义
 - `src/composables/usePersona.ts` - 人格 API 封装
+- `src/components/persona/PersonaDialog.vue` - 人格选择对话框（shadcn Dialog + Tabs）
+- `src/components/persona/TerminalPanel.vue` - 可折叠内嵌终端面板
 
 **前端文件（修改）：**
-- `src/components/notes/NoteDetail.vue` - 启用"人格撰写"按钮
-- `src/router/index.ts` - 无需修改（不添加新路由）
+- `src/components/notes/NoteDetail.vue` - 启用"人格撰写"按钮，集成 Dialog 和 TerminalPanel
+- `src/types/index.ts` - 导出 persona 类型
 
 **后端文件（创建）：**
 - `src-tauri/src/commands/persona_commands.rs` - 人格相关 Tauri 命令
@@ -31,15 +29,19 @@
 - `src-tauri/src/repositories/terminal_session_repo.rs` - 终端会话持久化
 - `src-tauri/src/persona/scanner.rs` - 扫描本地 skills
 - `src-tauri/src/persona/builtin.rs` - 内置人格管理
+- `src-tauri/src/persona/mod.rs` - persona 模块入口
 - `src-tauri/src/terminal/pty_manager.rs` - PTY 管理
 - `src-tauri/src/terminal/session.rs` - 终端会话管理
+- `src-tauri/src/terminal/mod.rs` - terminal 模块入口
 - `src-tauri/src/models/persona.rs` - 人格数据模型
 - `src-tauri/src/models/terminal_session.rs` - 终端会话数据模型
 
 **后端文件（修改）：**
-- `src-tauri/src/lib.rs` - 注册新的 Tauri 命令
+- `src-tauri/src/lib.rs` - 注册新的 Tauri 命令和模块
 - `src-tauri/src/models.rs` - 导出新的模型模块
 - `src-tauri/src/db/schema.rs` - 添加数据库表
+- `src-tauri/src/commands/mod.rs` - 导出命令模块
+- `src-tauri/src/repositories/mod.rs` - 导出仓库模块
 - `src-tauri/Cargo.toml` - 添加新依赖
 
 **内置 Skills 文件（创建）：**
@@ -49,8 +51,9 @@
 - `src-tauri/skills/nuwa-skill.md` - 女娲人格生成器
 
 **依赖项：**
-- Rust: `portable-pty = "0.8"`, `dirs = "5.0"`
+- Rust: `portable-pty = "0.8"`, `uuid = { version = "1.0", features = ["v4"] }`
 - Frontend: `xterm = "^5.3.0"`, `xterm-addon-fit = "^0.8.0"`
+- shadcn: `tabs` 组件
 
 ---
 
@@ -62,71 +65,57 @@
 
 - [ ] **Step 1: 添加 Rust 依赖到 Cargo.toml**
 
-在 `[dependencies]` 部分添加：
+在 `src-tauri/Cargo.toml` 的 `[dependencies]` 末尾添加：
 
 ```toml
 portable-pty = "0.8"
-dirs = "5.0"
+uuid = { version = "1.0", features = ["v4"] }
 ```
 
 - [ ] **Step 2: 编译验证依赖**
 
 ```bash
-cd src-tauri
-cargo check
+cd src-tauri && cargo check
 ```
 
 Expected: 编译成功，无错误
 
 - [ ] **Step 3: 添加 personas 表到 schema.rs**
 
-在 `src-tauri/src/db/schema.rs` 的 `create_tables` 函数中添加：
+在 `src-tauri/src/db/schema.rs` 的 `init_schema` 函数中，`CREATE INDEX IF NOT EXISTS idx_notes_created_at` 行之后、`");` 之前添加：
 
-```rust
-// 在现有的 CREATE TABLE 语句后添加
-conn.execute(
-    "CREATE TABLE IF NOT EXISTS personas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        skill_name TEXT NOT NULL UNIQUE,
-        category TEXT NOT NULL,
-        description TEXT,
-        is_builtin INTEGER DEFAULT 0,
-        is_installed INTEGER DEFAULT 1,
-        created_at TEXT NOT NULL
-    )",
-    [],
-)?;
+```sql
+        CREATE TABLE IF NOT EXISTS personas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            skill_name TEXT NOT NULL UNIQUE,
+            category TEXT NOT NULL,
+            description TEXT,
+            is_builtin INTEGER DEFAULT 0,
+            is_installed INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS terminal_sessions (
+            id TEXT PRIMARY KEY,
+            note_id INTEGER NOT NULL,
+            persona_skill TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'running',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (note_id) REFERENCES notes(id)
+        );
 ```
 
-- [ ] **Step 4: 添加 terminal_sessions 表到 schema.rs**
-
-在 personas 表后继续添加：
-
-```rust
-conn.execute(
-    "CREATE TABLE IF NOT EXISTS terminal_sessions (
-        id TEXT PRIMARY KEY,
-        note_id INTEGER NOT NULL,
-        persona_skill TEXT NOT NULL,
-        mode TEXT NOT NULL,
-        status TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (note_id) REFERENCES links(id)
-    )",
-    [],
-)?;
-```
-
-- [ ] **Step 5: 验证数据库 schema**
+- [ ] **Step 4: 验证编译**
 
 ```bash
-cargo build
+cd src-tauri && cargo check
 ```
 
 Expected: 编译成功
 
-- [ ] **Step 6: 提交数据库 schema 更改**
+- [ ] **Step 5: 提交**
 
 ```bash
 git add src-tauri/Cargo.toml src-tauri/src/db/schema.rs
@@ -143,6 +132,8 @@ git commit -m "feat(persona): 添加 personas 和 terminal_sessions 表"
 - Modify: `src-tauri/src/models.rs`
 
 - [ ] **Step 1: 创建 persona.rs 模型文件**
+
+创建 `src-tauri/src/models/persona.rs`：
 
 ```rust
 use serde::{Deserialize, Serialize};
@@ -171,6 +162,8 @@ pub struct CreatePersona {
 
 - [ ] **Step 2: 创建 terminal_session.rs 模型文件**
 
+创建 `src-tauri/src/models/terminal_session.rs`：
+
 ```rust
 use serde::{Deserialize, Serialize};
 
@@ -192,28 +185,24 @@ pub struct CreateTerminalSession {
 }
 ```
 
-- [ ] **Step 3: 在 models.rs 中导出新模块**
+- [ ] **Step 3: 在 models.rs 末尾添加导出**
 
 在 `src-tauri/src/models.rs` 末尾添加：
 
 ```rust
 pub mod persona;
 pub mod terminal_session;
-
-pub use persona::{Persona, CreatePersona};
-pub use terminal_session::{TerminalSession, CreateTerminalSession};
 ```
 
-- [ ] **Step 4: 验证模型编译**
+- [ ] **Step 4: 验证编译**
 
 ```bash
-cd src-tauri
-cargo check
+cd src-tauri && cargo check
 ```
 
 Expected: 编译成功
 
-- [ ] **Step 5: 提交模型文件**
+- [ ] **Step 5: 提交**
 
 ```bash
 git add src-tauri/src/models/persona.rs src-tauri/src/models/terminal_session.rs src-tauri/src/models.rs
@@ -346,30 +335,13 @@ category: 工具
 
 ## 工作流程
 
-1. **调研阶段**
-   - 搜索该人物的公开资料、作品、访谈等
-   - 分析其写作风格、表达特点、思维方式
-   - 总结其内容创作的核心特征
-
-2. **生成阶段**
-   - 创建符合 Claude Code skill 格式的 markdown 文件
-   - 包含 frontmatter（name, description, category）
-   - 详细描述写作风格和内容特点
-   - 提供清晰的任务说明
-
-3. **验证阶段**
-   - 确保生成的 skill 格式正确
-   - 验证描述的准确性和完整性
-   - 提供使用示例
+1. **调研阶段** — 搜索该人物的公开资料、作品、访谈等，分析其写作风格、表达特点、思维方式
+2. **生成阶段** — 创建符合 Claude Code skill 格式的 markdown 文件，包含 frontmatter 和详细描述
+3. **验证阶段** — 确保格式正确，描述准确完整
 
 ## 输出格式
 
-生成的 skill 文件应包含：
-- frontmatter（YAML 格式）
-- 人格介绍
-- 写作风格描述
-- 内容特点说明
-- 任务说明
+生成的 skill 文件应包含：frontmatter（YAML 格式）、人格介绍、写作风格描述、内容特点说明、任务说明。
 
 ## 注意事项
 - 女娲不会出现在人格选择列表中
@@ -377,15 +349,7 @@ category: 工具
 - 生成的人格应尊重原人物的风格和特点
 ```
 
-- [ ] **Step 6: 验证 skills 文件创建**
-
-```bash
-ls -la src-tauri/skills/
-```
-
-Expected: 显示 4 个 .md 文件
-
-- [ ] **Step 7: 提交内置 skills 文件**
+- [ ] **Step 6: 提交**
 
 ```bash
 git add src-tauri/skills/
@@ -409,6 +373,8 @@ mkdir -p src-tauri/src/persona
 
 - [ ] **Step 2: 创建 persona/mod.rs**
 
+创建 `src-tauri/src/persona/mod.rs`：
+
 ```rust
 pub mod builtin;
 pub mod scanner;
@@ -417,97 +383,102 @@ pub use builtin::initialize_builtin_skills;
 pub use scanner::scan_local_skills;
 ```
 
-- [ ] **Step 3: 创建 builtin.rs 实现**
+- [ ] **Step 3: 创建 persona/builtin.rs**
+
+创建 `src-tauri/src/persona/builtin.rs`：
 
 ```rust
 use std::fs;
 use std::path::PathBuf;
-use anyhow::{Result, Context};
+use crate::error::AppResult;
 
-/// 获取内置 skills 目标目录
-pub fn get_builtin_skills_dir() -> Result<PathBuf> {
-    let home = dirs::home_dir()
-        .context("无法获取 home 目录")?;
-    Ok(home.join(".claude/plugins/cache/omnilink-builtin/skills"))
+pub fn get_builtin_skills_dir() -> PathBuf {
+    dirs::home_dir()
+        .expect("Cannot determine home directory")
+        .join(".claude/plugins/cache/omnilink-builtin/skills")
 }
 
-/// 初始化内置 skills（应用启动时调用）
-pub fn initialize_builtin_skills() -> Result<()> {
-    let target_dir = get_builtin_skills_dir()?;
-    
-    // 创建目标目录
-    fs::create_dir_all(&target_dir)
-        .context("创建内置 skills 目录失败")?;
-    
-    // 内置 skills 内容（编译时嵌入）
+pub fn initialize_builtin_skills() -> AppResult<()> {
+    let target_dir = get_builtin_skills_dir();
+    fs::create_dir_all(&target_dir)?;
+
     let builtin_skills = [
         ("fangqikiki-perspective.md", include_str!("../../skills/fangqikiki-perspective.md")),
         ("leitanzhang-perspective.md", include_str!("../../skills/leitanzhang-perspective.md")),
         ("huashu-perspective.md", include_str!("../../skills/huashu-perspective.md")),
         ("nuwa-skill.md", include_str!("../../skills/nuwa-skill.md")),
     ];
-    
-    // 复制文件（仅在不存在时）
+
     for (filename, content) in builtin_skills {
         let target_path = target_dir.join(filename);
-        
         if !target_path.exists() {
-            fs::write(&target_path, content)
-                .with_context(|| format!("写入 {} 失败", filename))?;
+            fs::write(&target_path, content)?;
         }
     }
-    
+
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_get_builtin_skills_dir() {
-        let dir = get_builtin_skills_dir().unwrap();
-        assert!(dir.to_string_lossy().contains(".claude/plugins/cache/omnilink-builtin/skills"));
-    }
 }
 ```
 
-- [ ] **Step 4: 在 lib.rs 中导入 persona 模块**
+- [ ] **Step 4: 在 lib.rs 中导入 persona 模块并调用初始化**
 
-在 `src-tauri/src/lib.rs` 的模块声明部分添加：
+在 `src-tauri/src/lib.rs` 的模块声明部分（`mod ai;` 之后）添加：
 
 ```rust
 mod persona;
+mod terminal;
 ```
 
-- [ ] **Step 5: 在 lib.rs 的 setup 钩子中调用初始化**
-
-在 `tauri::Builder::default()` 的 `.setup()` 钩子中添加：
+在 `lib.rs` 的 `.setup()` 钩子中，`tracing::info!("OmniLink application setup completed");` 之前添加：
 
 ```rust
-.setup(|app| {
-    // 初始化内置人格 skills
-    if let Err(e) = persona::initialize_builtin_skills() {
-        eprintln!("初始化内置 skills 失败: {}", e);
-    }
-    Ok(())
-})
+            persona::initialize_builtin_skills()?;
+            tracing::info!("Built-in persona skills initialized");
 ```
 
-- [ ] **Step 6: 验证编译**
+- [ ] **Step 5: 验证编译**
 
 ```bash
-cd src-tauri
-cargo check
+cd src-tauri && cargo check
+```
+
+Expected: 编译成功（terminal 模块暂时为空会报错，先创建空的 mod 文件）
+
+创建 `src-tauri/src/terminal/mod.rs`：
+
+```rust
+pub mod pty_manager;
+pub mod session;
+
+pub use pty_manager::PtyManager;
+pub use session::PtySession;
+```
+
+创建 `src-tauri/src/terminal/session.rs`：
+
+```rust
+// Task 7 will implement PtySession
+```
+
+创建 `src-tauri/src/terminal/pty_manager.rs`：
+
+```rust
+// Task 7 will implement PtyManager
+```
+
+- [ ] **Step 6: 再次验证编译**
+
+```bash
+cd src-tauri && cargo check
 ```
 
 Expected: 编译成功
 
-- [ ] **Step 7: 提交内置 skills 初始化模块**
+- [ ] **Step 7: 提交**
 
 ```bash
-git add src-tauri/src/persona/
-git commit -m "feat(persona): 实现内置 skills 初始化模块"
+git add src-tauri/src/persona/ src-tauri/src/terminal/ src-tauri/src/lib.rs
+git commit -m "feat(persona): 实现内置 skills 初始化模块和 terminal 模块骨架"
 ```
 
 ---
@@ -516,37 +487,35 @@ git commit -m "feat(persona): 实现内置 skills 初始化模块"
 
 **Files:**
 - Create: `src-tauri/src/persona/scanner.rs`
-- Modify: `src-tauri/src/persona/mod.rs`
+- Modify: `src-tauri/src/persona/mod.rs`（已在 Task 4 导出）
 
-- [ ] **Step 1: 创建 scanner.rs 基础结构**
+- [ ] **Step 1: 创建 scanner.rs**
+
+创建 `src-tauri/src/persona/scanner.rs`：
 
 ```rust
 use std::fs;
-use std::path::{Path, PathBuf};
-use anyhow::{Result, Context};
+use std::path::Path;
+use crate::error::AppResult;
 use crate::models::Persona;
-use crate::persona::builtin::get_builtin_skills_dir;
+use super::builtin::get_builtin_skills_dir;
 
-/// 扫描本地所有可用的人格 skills
-pub fn scan_local_skills() -> Result<Vec<Persona>> {
+pub fn scan_local_skills() -> AppResult<Vec<Persona>> {
     let mut personas = Vec::new();
-    
-    // 1. 扫描内置人格（优先）
-    let builtin_dir = get_builtin_skills_dir()?;
+
+    let builtin_dir = get_builtin_skills_dir();
     if builtin_dir.exists() {
         personas.extend(scan_skills_directory(&builtin_dir, true)?);
     }
-    
-    // 2. 扫描用户本地 Claude Code skills
-    let home = dirs::home_dir()
-        .context("无法获取 home 目录")?;
-    let cache_dir = home.join(".claude/plugins/cache");
-    
+
+    let cache_dir = dirs::home_dir()
+        .expect("Cannot determine home directory")
+        .join(".claude/plugins/cache");
+
     if cache_dir.exists() {
         for entry in fs::read_dir(&cache_dir)? {
             let entry = entry?;
             let plugin_dir = entry.path();
-            
             if plugin_dir.is_dir() {
                 let skills_path = plugin_dir.join("skills");
                 if skills_path.exists() {
@@ -555,22 +524,20 @@ pub fn scan_local_skills() -> Result<Vec<Persona>> {
             }
         }
     }
-    
+
     Ok(personas)
 }
 
-/// 扫描指定目录下的 skills
-fn scan_skills_directory(dir: &Path, is_builtin: bool) -> Result<Vec<Persona>> {
+fn scan_skills_directory(dir: &Path, is_builtin: bool) -> AppResult<Vec<Persona>> {
     let mut personas = Vec::new();
-    
+
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
-        
+
         if path.is_file() {
             if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-                // 只扫描 perspective skills，排除女娲
-                if filename.ends_with("-perspective.md") && filename != "nuwa-skill.md" {
+                if filename.ends_with("-perspective.md") {
                     if let Ok(persona) = parse_skill_file(&path, is_builtin) {
                         personas.push(persona);
                     }
@@ -578,25 +545,21 @@ fn scan_skills_directory(dir: &Path, is_builtin: bool) -> Result<Vec<Persona>> {
             }
         }
     }
-    
+
     Ok(personas)
 }
 
-/// 解析 skill 文件，提取人格信息
-fn parse_skill_file(path: &Path, is_builtin: bool) -> Result<Persona> {
+fn parse_skill_file(path: &Path, is_builtin: bool) -> AppResult<Persona> {
     let content = fs::read_to_string(path)?;
-    
-    // 解析 frontmatter
     let (name, description, category) = parse_frontmatter(&content)?;
-    
-    // 从文件名提取 skill_name
+
     let skill_name = path.file_stem()
         .and_then(|s| s.to_str())
-        .context("无效的文件名")?
+        .unwrap_or("unknown")
         .to_string();
-    
+
     Ok(Persona {
-        id: 0, // 临时 ID，扫描时不需要
+        id: 0,
         name,
         skill_name,
         category,
@@ -607,102 +570,57 @@ fn parse_skill_file(path: &Path, is_builtin: bool) -> Result<Persona> {
     })
 }
 
-/// 解析 YAML frontmatter
-fn parse_frontmatter(content: &str) -> Result<(String, String, String)> {
+fn parse_frontmatter(content: &str) -> AppResult<(String, String, String)> {
     let lines: Vec<&str> = content.lines().collect();
-    
+
     if lines.is_empty() || !lines[0].starts_with("---") {
-        anyhow::bail!("缺少 frontmatter");
+        anyhow::bail!("Missing frontmatter");
     }
-    
+
     let mut name = String::new();
     let mut description = String::new();
     let mut category = String::from("其他");
-    
+
     for line in lines.iter().skip(1) {
         if line.starts_with("---") {
             break;
         }
-        
         if let Some((key, value)) = line.split_once(':') {
-            let key = key.trim();
-            let value = value.trim();
-            
-            match key {
-                "name" => name = value.to_string(),
-                "description" => description = value.to_string(),
-                "category" => category = value.to_string(),
+            match key.trim() {
+                "name" => name = value.trim().to_string(),
+                "description" => description = value.trim().to_string(),
+                "category" => category = value.trim().to_string(),
                 _ => {}
             }
         }
     }
-    
+
     if name.is_empty() {
-        anyhow::bail!("frontmatter 缺少 name 字段");
+        anyhow::bail!("Frontmatter missing 'name' field");
     }
-    
+
     Ok((name, description, category))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_frontmatter() {
-        let content = r#"---
-name: test-skill
-description: Test description
-category: 测试类
----
-
-# Content
-"#;
-        let (name, desc, cat) = parse_frontmatter(content).unwrap();
-        assert_eq!(name, "test-skill");
-        assert_eq!(desc, "Test description");
-        assert_eq!(cat, "测试类");
-    }
-}
 ```
 
-- [ ] **Step 2: 在 persona/mod.rs 中导出 scanner**
-
-确认 `src-tauri/src/persona/mod.rs` 已包含：
-
-```rust
-pub mod scanner;
-pub use scanner::scan_local_skills;
-```
-
-- [ ] **Step 3: 添加 chrono 依赖**
-
-在 `src-tauri/Cargo.toml` 的 `[dependencies]` 中添加：
-
-```toml
-chrono = { version = "0.4", features = ["serde"] }
-anyhow = "1.0"
-```
-
-- [ ] **Step 4: 验证编译**
+- [ ] **Step 2: 验证编译**
 
 ```bash
-cd src-tauri
-cargo check
+cd src-tauri && cargo check
 ```
 
 Expected: 编译成功
 
-- [ ] **Step 5: 提交人格扫描器**
+- [ ] **Step 3: 提交**
 
 ```bash
-git add src-tauri/src/persona/scanner.rs src-tauri/Cargo.toml
+git add src-tauri/src/persona/scanner.rs
 git commit -m "feat(persona): 实现人格扫描器"
 ```
 
 ---
 
-## Task 6: 实现人格仓库（Repository）
+## Task 6: 实现人格仓库
 
 **Files:**
 - Create: `src-tauri/src/repositories/persona_repo.rs`
@@ -710,12 +628,14 @@ git commit -m "feat(persona): 实现人格扫描器"
 
 - [ ] **Step 1: 创建 persona_repo.rs**
 
+创建 `src-tauri/src/repositories/persona_repo.rs`：
+
 ```rust
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection};
+use crate::error::AppResult;
 use crate::models::{Persona, CreatePersona};
 
-/// 插入新人格
-pub fn insert_persona(conn: &Connection, persona: &CreatePersona) -> Result<i64> {
+pub fn insert_persona(conn: &Connection, persona: &CreatePersona) -> AppResult<i64> {
     conn.execute(
         "INSERT INTO personas (name, skill_name, category, description, is_builtin, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))",
@@ -730,14 +650,13 @@ pub fn insert_persona(conn: &Connection, persona: &CreatePersona) -> Result<i64>
     Ok(conn.last_insert_rowid())
 }
 
-/// 查询所有人格
-pub fn get_all_personas(conn: &Connection) -> Result<Vec<Persona>> {
+pub fn get_all_personas(conn: &Connection) -> AppResult<Vec<Persona>> {
     let mut stmt = conn.prepare(
         "SELECT id, name, skill_name, category, description, is_builtin, is_installed, created_at
          FROM personas
          ORDER BY is_builtin DESC, created_at DESC"
     )?;
-    
+
     let personas = stmt.query_map([], |row| {
         Ok(Persona {
             id: row.get(0)?,
@@ -750,21 +669,20 @@ pub fn get_all_personas(conn: &Connection) -> Result<Vec<Persona>> {
             created_at: row.get(7)?,
         })
     })?
-    .collect::<Result<Vec<_>>>()?;
-    
+    .collect::<Result<Vec<_>, _>>()?;
+
     Ok(personas)
 }
 
-/// 根据 skill_name 查询人格
-pub fn get_persona_by_skill_name(conn: &Connection, skill_name: &str) -> Result<Option<Persona>> {
+pub fn get_persona_by_skill_name(conn: &Connection, skill_name: &str) -> AppResult<Option<Persona>> {
     let mut stmt = conn.prepare(
         "SELECT id, name, skill_name, category, description, is_builtin, is_installed, created_at
          FROM personas
          WHERE skill_name = ?1"
     )?;
-    
+
     let mut rows = stmt.query(params![skill_name])?;
-    
+
     if let Some(row) = rows.next()? {
         Ok(Some(Persona {
             id: row.get(0)?,
@@ -781,53 +699,13 @@ pub fn get_persona_by_skill_name(conn: &Connection, skill_name: &str) -> Result<
     }
 }
 
-/// 删除人格
-pub fn delete_persona(conn: &Connection, id: i64) -> Result<()> {
+pub fn delete_persona(conn: &Connection, id: i64) -> AppResult<()> {
     conn.execute("DELETE FROM personas WHERE id = ?1", params![id])?;
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rusqlite::Connection;
-
-    #[test]
-    fn test_insert_and_get_persona() {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute(
-            "CREATE TABLE personas (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL,
-                skill_name TEXT NOT NULL UNIQUE,
-                category TEXT NOT NULL,
-                description TEXT,
-                is_builtin INTEGER DEFAULT 0,
-                is_installed INTEGER DEFAULT 1,
-                created_at TEXT NOT NULL
-            )",
-            [],
-        ).unwrap();
-        
-        let persona = CreatePersona {
-            name: "测试人格".to_string(),
-            skill_name: "test-skill".to_string(),
-            category: "测试类".to_string(),
-            description: "测试描述".to_string(),
-            is_builtin: false,
-        };
-        
-        let id = insert_persona(&conn, &persona).unwrap();
-        assert!(id > 0);
-        
-        let found = get_persona_by_skill_name(&conn, "test-skill").unwrap();
-        assert!(found.is_some());
-        assert_eq!(found.unwrap().name, "测试人格");
-    }
-}
 ```
 
-- [ ] **Step 2: 在 repositories/mod.rs 中导出**
+- [ ] **Step 2: 在 repositories/mod.rs 末尾添加导出**
 
 在 `src-tauri/src/repositories/mod.rs` 末尾添加：
 
@@ -838,21 +716,12 @@ pub mod persona_repo;
 - [ ] **Step 3: 验证编译**
 
 ```bash
-cd src-tauri
-cargo check
+cd src-tauri && cargo check
 ```
 
 Expected: 编译成功
 
-- [ ] **Step 4: 运行单元测试**
-
-```bash
-cargo test persona_repo
-```
-
-Expected: 测试通过
-
-- [ ] **Step 5: 提交人格仓库**
+- [ ] **Step 4: 提交**
 
 ```bash
 git add src-tauri/src/repositories/persona_repo.rs src-tauri/src/repositories/mod.rs
@@ -869,32 +738,33 @@ git commit -m "feat(persona): 实现人格数据仓库"
 
 - [ ] **Step 1: 创建 terminal_session_repo.rs**
 
+创建 `src-tauri/src/repositories/terminal_session_repo.rs`：
+
 ```rust
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection};
+use crate::error::AppResult;
 use crate::models::{TerminalSession, CreateTerminalSession};
 
-/// 插入新终端会话
 pub fn insert_terminal_session(
     conn: &Connection,
     session: &CreateTerminalSession,
-) -> Result<String> {
+) -> AppResult<String> {
     let id = uuid::Uuid::new_v4().to_string();
-    
+
     conn.execute(
         "INSERT INTO terminal_sessions (id, note_id, persona_skill, mode, status, created_at)
          VALUES (?1, ?2, ?3, ?4, 'running', datetime('now'))",
         params![id, session.note_id, session.persona_skill, session.mode],
     )?;
-    
+
     Ok(id)
 }
 
-/// 更新会话状态
 pub fn update_session_status(
     conn: &Connection,
     session_id: &str,
     status: &str,
-) -> Result<()> {
+) -> AppResult<()> {
     conn.execute(
         "UPDATE terminal_sessions SET status = ?1 WHERE id = ?2",
         params![status, session_id],
@@ -902,16 +772,15 @@ pub fn update_session_status(
     Ok(())
 }
 
-/// 根据 ID 查询会话
-pub fn get_session_by_id(conn: &Connection, session_id: &str) -> Result<Option<TerminalSession>> {
+pub fn get_session_by_id(conn: &Connection, session_id: &str) -> AppResult<Option<TerminalSession>> {
     let mut stmt = conn.prepare(
         "SELECT id, note_id, persona_skill, mode, status, created_at
          FROM terminal_sessions
          WHERE id = ?1"
     )?;
-    
+
     let mut rows = stmt.query(params![session_id])?;
-    
+
     if let Some(row) = rows.next()? {
         Ok(Some(TerminalSession {
             id: row.get(0)?,
@@ -925,76 +794,9 @@ pub fn get_session_by_id(conn: &Connection, session_id: &str) -> Result<Option<T
         Ok(None)
     }
 }
-
-/// 根据笔记 ID 查询会话列表
-pub fn get_sessions_by_note_id(conn: &Connection, note_id: i64) -> Result<Vec<TerminalSession>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, note_id, persona_skill, mode, status, created_at
-         FROM terminal_sessions
-         WHERE note_id = ?1
-         ORDER BY created_at DESC"
-    )?;
-    
-    let sessions = stmt.query_map(params![note_id], |row| {
-        Ok(TerminalSession {
-            id: row.get(0)?,
-            note_id: row.get(1)?,
-            persona_skill: row.get(2)?,
-            mode: row.get(3)?,
-            status: row.get(4)?,
-            created_at: row.get(5)?,
-        })
-    })?
-    .collect::<Result<Vec<_>>>()?;
-    
-    Ok(sessions)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rusqlite::Connection;
-
-    #[test]
-    fn test_insert_and_get_session() {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute(
-            "CREATE TABLE terminal_sessions (
-                id TEXT PRIMARY KEY,
-                note_id INTEGER NOT NULL,
-                persona_skill TEXT NOT NULL,
-                mode TEXT NOT NULL,
-                status TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            )",
-            [],
-        ).unwrap();
-        
-        let session = CreateTerminalSession {
-            note_id: 1,
-            persona_skill: "test-skill".to_string(),
-            mode: "manual".to_string(),
-        };
-        
-        let id = insert_terminal_session(&conn, &session).unwrap();
-        assert!(!id.is_empty());
-        
-        let found = get_session_by_id(&conn, &id).unwrap();
-        assert!(found.is_some());
-        assert_eq!(found.unwrap().status, "running");
-    }
-}
 ```
 
-- [ ] **Step 2: 添加 uuid 依赖**
-
-在 `src-tauri/Cargo.toml` 的 `[dependencies]` 中添加：
-
-```toml
-uuid = { version = "1.0", features = ["v4"] }
-```
-
-- [ ] **Step 3: 在 repositories/mod.rs 中导出**
+- [ ] **Step 2: 在 repositories/mod.rs 末尾添加导出**
 
 在 `src-tauri/src/repositories/mod.rs` 末尾添加：
 
@@ -1002,27 +804,18 @@ uuid = { version = "1.0", features = ["v4"] }
 pub mod terminal_session_repo;
 ```
 
-- [ ] **Step 4: 验证编译**
+- [ ] **Step 3: 验证编译**
 
 ```bash
-cd src-tauri
-cargo check
+cd src-tauri && cargo check
 ```
 
 Expected: 编译成功
 
-- [ ] **Step 5: 运行单元测试**
+- [ ] **Step 4: 提交**
 
 ```bash
-cargo test terminal_session_repo
-```
-
-Expected: 测试通过
-
-- [ ] **Step 6: 提交终端会话仓库**
-
-```bash
-git add src-tauri/src/repositories/terminal_session_repo.rs src-tauri/Cargo.toml
+git add src-tauri/src/repositories/terminal_session_repo.rs src-tauri/src/repositories/mod.rs
 git commit -m "feat(persona): 实现终端会话数据仓库"
 ```
 
@@ -1031,35 +824,18 @@ git commit -m "feat(persona): 实现终端会话数据仓库"
 ## Task 8: 实现 PTY 管理器
 
 **Files:**
-- Create: `src-tauri/src/terminal/mod.rs`
-- Create: `src-tauri/src/terminal/pty_manager.rs`
-- Create: `src-tauri/src/terminal/session.rs`
-- Modify: `src-tauri/src/lib.rs`
+- Modify: `src-tauri/src/terminal/session.rs`（替换占位）
+- Modify: `src-tauri/src/terminal/pty_manager.rs`（替换占位）
 
-- [ ] **Step 1: 创建 terminal 模块目录**
+- [ ] **Step 1: 实现 terminal/session.rs**
 
-```bash
-mkdir -p src-tauri/src/terminal
-```
-
-- [ ] **Step 2: 创建 terminal/mod.rs**
-
-```rust
-pub mod pty_manager;
-pub mod session;
-
-pub use pty_manager::PtyManager;
-pub use session::PtySession;
-```
-
-- [ ] **Step 3: 创建 session.rs（会话数据结构）**
+替换 `src-tauri/src/terminal/session.rs` 内容为：
 
 ```rust
 use portable_pty::{Child, MasterPty, PtySize};
 use std::io::Write;
-use anyhow::Result;
+use crate::error::AppResult;
 
-/// PTY 会话
 pub struct PtySession {
     pub id: String,
     pub master: Box<dyn MasterPty + Send>,
@@ -1069,16 +845,14 @@ pub struct PtySession {
 }
 
 impl PtySession {
-    /// 写入命令到 PTY
-    pub fn write_command(&mut self, command: &str) -> Result<()> {
+    pub fn write_command(&mut self, command: &str) -> AppResult<()> {
         let mut writer = self.master.take_writer()?;
         write!(writer, "{}\n", command)?;
         writer.flush()?;
         Ok(())
     }
-    
-    /// 调整 PTY 大小
-    pub fn resize(&self, rows: u16, cols: u16) -> Result<()> {
+
+    pub fn resize(&self, rows: u16, cols: u16) -> AppResult<()> {
         self.master.resize(PtySize {
             rows,
             cols,
@@ -1090,16 +864,17 @@ impl PtySession {
 }
 ```
 
-- [ ] **Step 4: 创建 pty_manager.rs（核心逻辑）**
+- [ ] **Step 2: 实现 terminal/pty_manager.rs**
+
+替换 `src-tauri/src/terminal/pty_manager.rs` 内容为：
 
 ```rust
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use anyhow::{Result, Context};
-use crate::terminal::session::PtySession;
+use crate::error::AppResult;
+use super::session::PtySession;
 
-/// PTY 管理器
 pub struct PtyManager {
     sessions: Arc<Mutex<HashMap<String, PtySession>>>,
 }
@@ -1110,31 +885,26 @@ impl PtyManager {
             sessions: Arc::new(Mutex::new(HashMap::new())),
         }
     }
-    
-    /// 创建新的 PTY 会话
+
     pub fn create_session(
         &self,
         session_id: String,
         note_id: i64,
         note_path: &str,
         persona_skill: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let pty_system = native_pty_system();
-        
-        // 创建 PTY
+
         let pair = pty_system.openpty(PtySize {
             rows: 24,
             cols: 80,
             pixel_width: 0,
             pixel_height: 0,
         })?;
-        
-        // 启动 claude 命令
+
         let mut cmd = CommandBuilder::new("claude");
-        let child = pair.slave.spawn_command(cmd)
-            .context("启动 claude 命令失败")?;
-        
-        // 创建会话
+        let child = pair.slave.spawn_command(cmd)?;
+
         let mut session = PtySession {
             id: session_id.clone(),
             master: pair.master,
@@ -1142,38 +912,33 @@ impl PtyManager {
             note_id,
             persona_skill: persona_skill.to_string(),
         };
-        
-        // 自动输入命令
+
         let command = format!(
             "使用 {} 重构 {}，直接覆盖内容",
             persona_skill, note_path
         );
         session.write_command(&command)?;
-        
-        // 保存会话
+
         let mut sessions = self.sessions.lock().unwrap();
         sessions.insert(session_id, session);
-        
+
         Ok(())
     }
-    
-    /// 获取会话
+
     pub fn get_session(&self, session_id: &str) -> Option<String> {
         let sessions = self.sessions.lock().unwrap();
         sessions.get(session_id).map(|s| s.id.clone())
     }
-    
-    /// 关闭会话
-    pub fn close_session(&self, session_id: &str) -> Result<()> {
+
+    pub fn close_session(&self, session_id: &str) -> AppResult<()> {
         let mut sessions = self.sessions.lock().unwrap();
         if let Some(mut session) = sessions.remove(session_id) {
             let _ = session.child.kill();
         }
         Ok(())
     }
-    
-    /// 调整会话终端大小
-    pub fn resize_session(&self, session_id: &str, rows: u16, cols: u16) -> Result<()> {
+
+    pub fn resize_session(&self, session_id: &str, rows: u16, cols: u16) -> AppResult<()> {
         let sessions = self.sessions.lock().unwrap();
         if let Some(session) = sessions.get(session_id) {
             session.resize(rows, cols)?;
@@ -1187,37 +952,17 @@ impl Default for PtyManager {
         Self::new()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_pty_manager_creation() {
-        let manager = PtyManager::new();
-        assert!(manager.get_session("non-existent").is_none());
-    }
-}
 ```
 
-- [ ] **Step 5: 在 lib.rs 中导入 terminal 模块**
-
-在 `src-tauri/src/lib.rs` 的模块声明部分添加：
-
-```rust
-mod terminal;
-```
-
-- [ ] **Step 6: 验证编译**
+- [ ] **Step 3: 验证编译**
 
 ```bash
-cd src-tauri
-cargo check
+cd src-tauri && cargo check
 ```
 
 Expected: 编译成功
 
-- [ ] **Step 7: 提交 PTY 管理器**
+- [ ] **Step 4: 提交**
 
 ```bash
 git add src-tauri/src/terminal/
@@ -1226,177 +971,128 @@ git commit -m "feat(persona): 实现 PTY 管理器和会话管理"
 
 ---
 
-## Task 9: 实现 Tauri 命令（人格相关）
+## Task 9: 实现 Tauri 命令（人格 + 终端）
 
 **Files:**
 - Create: `src-tauri/src/commands/persona_commands.rs`
+- Create: `src-tauri/src/commands/terminal_commands.rs`
 - Modify: `src-tauri/src/commands/mod.rs`
 
 - [ ] **Step 1: 创建 persona_commands.rs**
 
+创建 `src-tauri/src/commands/persona_commands.rs`：
+
 ```rust
 use tauri::State;
-use std::sync::Mutex;
-use crate::db::get_connection;
+use crate::db::DbState;
 use crate::models::{Persona, CreatePersona};
 use crate::repositories::persona_repo;
 use crate::persona::scan_local_skills;
 
-/// 扫描本地人格 skills
 #[tauri::command]
 pub async fn scan_local_personas() -> Result<Vec<Persona>, String> {
-    scan_local_skills()
-        .map_err(|e| format!("扫描人格失败: {}", e))
+    scan_local_skills().map_err(|e| e.to_string())
 }
 
-/// 获取所有已安装的人格
 #[tauri::command]
-pub async fn get_all_personas() -> Result<Vec<Persona>, String> {
-    let conn = get_connection()
-        .map_err(|e| format!("数据库连接失败: {}", e))?;
-    
-    persona_repo::get_all_personas(&conn)
-        .map_err(|e| format!("查询人格失败: {}", e))
+pub async fn get_all_personas(db: State<'_, DbState>) -> Result<Vec<Persona>, String> {
+    let conn = db.0.lock().unwrap();
+    persona_repo::get_all_personas(&conn).map_err(|e| e.to_string())
 }
 
-/// 根据 skill_name 获取人格
 #[tauri::command]
-pub async fn get_persona_by_skill(skill_name: String) -> Result<Option<Persona>, String> {
-    let conn = get_connection()
-        .map_err(|e| format!("数据库连接失败: {}", e))?;
-    
-    persona_repo::get_persona_by_skill_name(&conn, &skill_name)
-        .map_err(|e| format!("查询人格失败: {}", e))
+pub async fn get_persona_by_skill(
+    skill_name: String,
+    db: State<'_, DbState>,
+) -> Result<Option<Persona>, String> {
+    let conn = db.0.lock().unwrap();
+    persona_repo::get_persona_by_skill_name(&conn, &skill_name).map_err(|e| e.to_string())
 }
 
-/// 保存人格到数据库
 #[tauri::command]
-pub async fn save_persona(persona: CreatePersona) -> Result<i64, String> {
-    let conn = get_connection()
-        .map_err(|e| format!("数据库连接失败: ", e))?;
-    
-    persona_repo::insert_persona(&conn, &persona)
-        .map_err(|e| format!("保存人格失败: {}", e))
+pub async fn save_persona(
+    persona: CreatePersona,
+    db: State<'_, DbState>,
+) -> Result<i64, String> {
+    let conn = db.0.lock().unwrap();
+    persona_repo::insert_persona(&conn, &persona).map_err(|e| e.to_string())
 }
 
-/// 删除人格
 #[tauri::command]
-pub async fn delete_persona(id: i64) -> Result<(), String> {
-    let conn = get_connection()
-        .map_err(|e| format!("数据库连接失败: {}", e))?;
-    
-    persona_repo::delete_persona(&conn, id)
-        .map_err(|e| format!("删除人格失败: {}", e))
+pub async fn delete_persona(
+    id: i64,
+    db: State<'_, DbState>,
+) -> Result<(), String> {
+    let conn = db.0.lock().unwrap();
+    persona_repo::delete_persona(&conn, id).map_err(|e| e.to_string())
 }
 ```
 
-- [ ] **Step 2: 在 commands/mod.rs 中导出**
+- [ ] **Step 2: 创建 terminal_commands.rs**
 
-在 `src-tauri/src/commands/mod.rs` 末尾添加：
+创建 `src-tauri/src/commands/terminal_commands.rs`：
 
 ```rust
-pub mod persona_commands;
-pub use persona_commands::*;
-```
-
-- [ ] **Step 3: 验证编译**
-
-```bash
-cd src-tauri
-cargo check
-```
-
-Expected: 编译成功
-
-- [ ] **Step 4: 提交人格命令**
-
-```bash
-git add src-tauri/src/commands/persona_commands.rs src-tauri/src/commands/mod.rs
-git commit -m "feat(persona): 实现人格相关 Tauri 命令"
-```
-
----
-
-## Task 10: 实现 Tauri 命令（终端相关）
-
-**Files:**
-- Create: `src-tauri/src/commands/terminal_commands.rs`
-- Modify: `src-tauri/src/commands/mod.rs`
-- Modify: `src-tauri/src/lib.rs`
-
-- [ ] **Step 1: 创建 terminal_commands.rs**
-
-```rust
-use tauri::{State, Manager};
 use std::sync::Mutex;
-use crate::db::get_connection;
+use tauri::State;
+use crate::db::DbState;
 use crate::models::{TerminalSession, CreateTerminalSession};
 use crate::repositories::terminal_session_repo;
 use crate::terminal::PtyManager;
 
-/// 全局 PTY 管理器状态
 pub struct PtyManagerState(pub Mutex<PtyManager>);
 
-/// 启动人格重构会话
 #[tauri::command]
 pub async fn start_persona_rewrite(
     note_id: i64,
     note_path: String,
     persona_skill: String,
     mode: String,
+    db: State<'_, DbState>,
     pty_manager: State<'_, PtyManagerState>,
 ) -> Result<String, String> {
-    // 创建会话记录
-    let conn = get_connection()
-        .map_err(|e| format!("数据库连接失败: {}", e))?;
-    
+    let conn = db.0.lock().unwrap();
+
     let create_session = CreateTerminalSession {
         note_id,
         persona_skill: persona_skill.clone(),
         mode: mode.clone(),
     };
-    
+
     let session_id = terminal_session_repo::insert_terminal_session(&conn, &create_session)
-        .map_err(|e| format!("创建会话失败: {}", e))?;
-    
-    // 创建 PTY 会话
+        .map_err(|e| e.to_string())?;
+
     let manager = pty_manager.0.lock().unwrap();
     manager.create_session(
         session_id.clone(),
         note_id,
         &note_path,
         &persona_skill,
-    )
-    .map_err(|e| format!("创建 PTY 会话失败: {}", e))?;
-    
+    ).map_err(|e| e.to_string())?;
+
     Ok(session_id)
 }
 
-/// 更新会话状态
 #[tauri::command]
 pub async fn update_session_status(
     session_id: String,
     status: String,
+    db: State<'_, DbState>,
 ) -> Result<(), String> {
-    let conn = get_connection()
-        .map_err(|e| format!("数据库连接失败: {}", e))?;
-    
+    let conn = db.0.lock().unwrap();
     terminal_session_repo::update_session_status(&conn, &session_id, &status)
-        .map_err(|e| format!("更新会话状态失败: {}", e))
+        .map_err(|e| e.to_string())
 }
 
-/// 关闭终端会话
 #[tauri::command]
 pub async fn close_terminal_session(
     session_id: String,
     pty_manager: State<'_, PtyManagerState>,
 ) -> Result<(), String> {
     let manager = pty_manager.0.lock().unwrap();
-    manager.close_session(&session_id)
-        .map_err(|e| format!("关闭会话失败: {}", e))
+    manager.close_session(&session_id).map_err(|e| e.to_string())
 }
 
-/// 调整终端大小
 #[tauri::command]
 pub async fn resize_terminal(
     session_id: String,
@@ -1405,105 +1101,93 @@ pub async fn resize_terminal(
     pty_manager: State<'_, PtyManagerState>,
 ) -> Result<(), String> {
     let manager = pty_manager.0.lock().unwrap();
-    manager.resize_session(&session_id, rows, cols)
-        .map_err(|e| format!("调整终端大小失败: {}", e))
+    manager.resize_session(&session_id, rows, cols).map_err(|e| e.to_string())
 }
 
-/// 获取会话信息
 #[tauri::command]
-pub async fn get_session_info(session_id: String) -> Result<Option<TerminalSession>, String> {
-    let conn = get_connection()
-        .map_err(|e| format!("数据库连接失败: {}", e))?;
-    
-    terminal_session_repo::get_session_by_id(&conn, &session_id)
-        .map_err(|e| format!("查询会话失败: {}", e))
+pub async fn get_session_info(
+    session_id: String,
+    db: State<'_, DbState>,
+) -> Result<Option<TerminalSession>, String> {
+    let conn = db.0.lock().unwrap();
+    terminal_session_repo::get_session_by_id(&conn, &session_id).map_err(|e| e.to_string())
 }
 ```
 
-- [ ] **Step 2: 在 commands/mod.rs 中导出**
+- [ ] **Step 3: 在 commands/mod.rs 中导出**
 
 在 `src-tauri/src/commands/mod.rs` 末尾添加：
 
 ```rust
+pub mod persona_commands;
 pub mod terminal_commands;
-pub use terminal_commands::*;
 ```
 
-- [ ] **Step 3: 在 lib.rs 中初始化 PTY 管理器状态**
+- [ ] **Step 4: 验证编译**
 
-在 `tauri::Builder::default()` 之前添加：
+```bash
+cd src-tauri && cargo check
+```
+
+Expected: 编译成功
+
+- [ ] **Step 5: 提交**
+
+```bash
+git add src-tauri/src/commands/persona_commands.rs src-tauri/src/commands/terminal_commands.rs src-tauri/src/commands/mod.rs
+git commit -m "feat(persona): 实现人格和终端 Tauri 命令"
+```
+
+---
+
+## Task 10: 注册所有 Tauri 命令并初始化 PTY 管理器
+
+**Files:**
+- Modify: `src-tauri/src/lib.rs`
+
+- [ ] **Step 1: 在 lib.rs 中添加 use 语句**
+
+在 `src-tauri/src/lib.rs` 的 `use config::ConfigState;` 之后添加：
 
 ```rust
 use commands::terminal_commands::PtyManagerState;
 use terminal::PtyManager;
 ```
 
-在 `.setup()` 钩子中添加：
+- [ ] **Step 2: 在 setup 钩子中初始化 PTY 管理器状态**
+
+在 `src-tauri/src/lib.rs` 的 `.setup()` 钩子中，`app.manage(ConfigState(...))` 之后添加：
 
 ```rust
-.manage(PtyManagerState(Mutex::new(PtyManager::new())))
+            app.manage(PtyManagerState(std::sync::Mutex::new(PtyManager::new())));
+```
+
+- [ ] **Step 3: 在 invoke_handler 中注册新命令**
+
+在 `src-tauri/src/lib.rs` 的 `.invoke_handler(tauri::generate_handler![...])` 中，`commands::note_commands::delete_note,` 之后添加：
+
+```rust
+            commands::persona_commands::scan_local_personas,
+            commands::persona_commands::get_all_personas,
+            commands::persona_commands::get_persona_by_skill,
+            commands::persona_commands::save_persona,
+            commands::persona_commands::delete_persona,
+            commands::terminal_commands::start_persona_rewrite,
+            commands::terminal_commands::update_session_status,
+            commands::terminal_commands::close_terminal_session,
+            commands::terminal_commands::resize_terminal,
+            commands::terminal_commands::get_session_info,
 ```
 
 - [ ] **Step 4: 验证编译**
 
 ```bash
-cd src-tauri
-cargo check
+cd src-tauri && cargo check
 ```
 
 Expected: 编译成功
 
-- [ ] **Step 5: 提交终端命令**
-
-```bash
-git add src-tauri/src/commands/terminal_commands.rs src-tauri/src/lib.rs
-git commit -m "feat(persona): 实现终端相关 Tauri 命令"
-```
-
----
-
-## Task 11: 注册所有 Tauri 命令
-
-**Files:**
-- Modify: `src-tauri/src/lib.rs`
-
-- [ ] **Step 1: 在 lib.rs 中注册人格和终端命令**
-
-在 `.invoke_handler()` 中添加所有新命令：
-
-```rust
-.invoke_handler(tauri::generate_handler![
-    // 现有命令...
-    commands::get_all_links,
-    commands::get_link_by_id,
-    // ... 其他现有命令 ...
-    
-    // 人格相关命令
-    commands::scan_local_personas,
-    commands::get_all_personas,
-    commands::get_persona_by_skill,
-    commands::save_persona,
-    commands::delete_persona,
-    
-    // 终端相关命令
-    commands::start_persona_rewrite,
-    commands::update_session_status,
-    commands::close_terminal_session,
-    commands::resize_terminal,
-    commands::get_session_info,
-])
-```
-
-- [ ] **Step 2: 验证所有命令注册成功**
-
-```bash
-cd src-tauri
-cargo build
-```
-
-Expected: 编译成功，无警告
-
-- [ ] **Step 3: 提交命令注册**
+- [ ] **Step 5: 提交**
 
 ```bash
 git add src-tauri/src/lib.rs
@@ -1512,41 +1196,52 @@ git commit -m "feat(persona): 注册所有人格和终端 Tauri 命令"
 
 ---
 
-## Task 12: 添加前端依赖
+## Task 11: 添加前端依赖
 
 **Files:**
 - Modify: `package.json`
 
-- [ ] **Step 1: 安装 xterm.js 相关依赖**
+- [ ] **Step 1: 安装 xterm.js 依赖**
 
 ```bash
 npm install xterm@^5.3.0 xterm-addon-fit@^0.8.0
 ```
 
-- [ ] **Step 2: 验证依赖安装**
+- [ ] **Step 2: 安装 shadcn tabs 组件**
+
+```bash
+npx shadcn-vue@latest add tabs
+```
+
+Expected: `src/components/ui/tabs/` 目录生成，包含 TabsList、TabsTrigger、TabsContent 等组件。
+
+- [ ] **Step 3: 验证依赖安装**
 
 ```bash
 npm list xterm xterm-addon-fit
+ls src/components/ui/tabs/
 ```
 
-Expected: 显示已安装的版本
+Expected: 显示已安装版本，tabs 目录存在
 
-- [ ] **Step 3: 提交 package.json 和 lock 文件**
+- [ ] **Step 4: 提交**
 
 ```bash
-git add package.json package-lock.json
-git commit -m "feat(persona): 添加 xterm.js 终端依赖"
+git add package.json package-lock.json src/components/ui/tabs/
+git commit -m "feat(persona): 添加 xterm.js 终端依赖和 shadcn tabs 组件"
 ```
 
 ---
 
-## Task 13: 创建前端类型定义
+## Task 12: 创建前端类型定义
 
 **Files:**
 - Create: `src/types/persona.ts`
 - Modify: `src/types/index.ts`
 
 - [ ] **Step 1: 创建 persona.ts 类型文件**
+
+创建 `src/types/persona.ts`：
 
 ```typescript
 export interface Persona {
@@ -1591,23 +1286,23 @@ export interface StartRewriteParams {
 }
 ```
 
-- [ ] **Step 2: 在 types/index.ts 中导出**
+- [ ] **Step 2: 在 types/index.ts 末尾添加导出**
 
 在 `src/types/index.ts` 末尾添加：
 
 ```typescript
-export * from './persona'
+export * from './persona';
 ```
 
-- [ ] **Step 3: 验证类型定义**
+- [ ] **Step 3: 验证类型检查**
 
 ```bash
-npm run type-check
+npm run build
 ```
 
 Expected: 无类型错误
 
-- [ ] **Step 4: 提交类型定义**
+- [ ] **Step 4: 提交**
 
 ```bash
 git add src/types/persona.ts src/types/index.ts
@@ -1616,92 +1311,64 @@ git commit -m "feat(persona): 添加人格和终端会话类型定义"
 
 ---
 
-## Task 14: 创建前端 API 封装
+## Task 13: 创建前端 API 封装
 
 **Files:**
 - Create: `src/composables/usePersona.ts`
 
 - [ ] **Step 1: 创建 usePersona.ts**
 
+创建 `src/composables/usePersona.ts`：
+
 ```typescript
-import { invoke } from '@tauri-apps/api/tauri'
+import { invoke } from '@tauri-apps/api/core';
 import type {
   Persona,
   CreatePersona,
   TerminalSession,
-  StartRewriteParams
-} from '@/types/persona'
+  StartRewriteParams,
+} from '../types/persona';
 
 export function usePersona() {
-  /**
-   * 扫描本地人格 skills
-   */
   const scanLocalPersonas = async (): Promise<Persona[]> => {
-    return await invoke<Persona[]>('scan_local_personas')
-  }
+    return await invoke<Persona[]>('scan_local_personas');
+  };
 
-  /**
-   * 获取所有已安装的人格
-   */
   const getAllPersonas = async (): Promise<Persona[]> => {
-    return await invoke<Persona[]>('get_all_personas')
-  }
+    return await invoke<Persona[]>('get_all_personas');
+  };
 
-  /**
-   * 根据 skill_name 获取人格
-   */
   const getPersonaBySkill = async (skillName: string): Promise<Persona | null> => {
-    return await invoke<Persona | null>('get_persona_by_skill', { skillName })
-  }
+    return await invoke<Persona | null>('get_persona_by_skill', { skillName });
+  };
 
-  /**
-   * 保存人格到数据库
-   */
   const savePersona = async (persona: CreatePersona): Promise<number> => {
-    return await invoke<number>('save_persona', { persona })
-  }
+    return await invoke<number>('save_persona', { persona });
+  };
 
-  /**
-   * 删除人格
-   */
   const deletePersona = async (id: number): Promise<void> => {
-    await invoke('delete_persona', { id })
-  }
+    await invoke('delete_persona', { id });
+  };
 
-  /**
-   * 启动人格重构会话
-   */
   const startPersonaRewrite = async (params: StartRewriteParams): Promise<string> => {
-    return await invoke<string>('start_persona_rewrite', params)
-  }
+    return await invoke<string>('start_persona_rewrite', params);
+  };
 
-  /**
-   * 更新会话状态
-   */
   const updateSessionStatus = async (sessionId: string, status: string): Promise<void> => {
-    await invoke('update_session_status', { sessionId, status })
-  }
+    await invoke('update_session_status', { sessionId, status });
+  };
 
-  /**
-   * 关闭终端会话
-   */
   const closeTerminalSession = async (sessionId: string): Promise<void> => {
-    await invoke('close_terminal_session', { sessionId })
-  }
+    await invoke('close_terminal_session', { sessionId });
+  };
 
-  /**
-   * 调整终端大小
-   */
   const resizeTerminal = async (sessionId: string, rows: number, cols: number): Promise<void> => {
-    await invoke('resize_terminal', { sessionId, rows, cols })
-  }
+    await invoke('resize_terminal', { sessionId, rows, cols });
+  };
 
-  /**
-   * 获取会话信息
-   */
   const getSessionInfo = async (sessionId: string): Promise<TerminalSession | null> => {
-    return await invoke<TerminalSession | null>('get_session_info', { sessionId })
-  }
+    return await invoke<TerminalSession | null>('get_session_info', { sessionId });
+  };
 
   return {
     scanLocalPersonas,
@@ -1713,20 +1380,20 @@ export function usePersona() {
     updateSessionStatus,
     closeTerminalSession,
     resizeTerminal,
-    getSessionInfo
-  }
+    getSessionInfo,
+  };
 }
 ```
 
 - [ ] **Step 2: 验证类型检查**
 
 ```bash
-npm run type-check
+npm run build
 ```
 
 Expected: 无类型错误
 
-- [ ] **Step 3: 提交 API 封装**
+- [ ] **Step 3: 提交**
 
 ```bash
 git add src/composables/usePersona.ts
@@ -1735,7 +1402,7 @@ git commit -m "feat(persona): 添加人格 API 封装"
 
 ---
 
-## Task 15: 创建人格选择对话框组件
+## Task 14: 创建人格选择对话框组件
 
 **Files:**
 - Create: `src/components/persona/PersonaDialog.vue`
@@ -1746,434 +1413,152 @@ git commit -m "feat(persona): 添加人格 API 封装"
 mkdir -p src/components/persona
 ```
 
-- [ ] **Step 2: 创建 PersonaDialog.vue（第一部分：模板）**
+- [ ] **Step 2: 创建 PersonaDialog.vue**
 
-```vue
-<template>
-  <div v-if="visible" class="dialog-overlay" @click.self="handleClose">
-    <div class="dialog-container">
-      <div class="dialog-header">
-        <h2>人格撰写</h2>
-        <button class="close-btn" @click="handleClose">✕</button>
-      </div>
-
-      <div class="dialog-tabs">
-        <button
-          :class="['tab', { active: activeTab === 'smart' }]"
-          @click="activeTab = 'smart'"
-        >
-          智能选择
-        </button>
-        <button
-          :class="['tab', { active: activeTab === 'manual' }]"
-          @click="activeTab = 'manual'"
-        >
-          手动选择
-        </button>
-      </div>
-
-      <div class="dialog-body">
-        <!-- 智能选择 Tab -->
-        <div v-if="activeTab === 'smart'" class="tab-content">
-          <div class="coming-soon">
-            <div class="icon">🚧</div>
-            <h3>智能选择功能即将开放</h3>
-            <p>Phase 3 将支持 AI 自动分析笔记内容并匹配合适的人格</p>
-          </div>
-        </div>
-
-        <!-- 手动选择 Tab -->
-        <div v-else class="tab-content">
-          <div v-if="loading" class="loading">
-            <div class="spinner"></div>
-            <p>正在扫描本地人格...</p>
-          </div>
-
-          <div v-else-if="error" class="error">
-            <p>{{ error }}</p>
-            <button @click="loadPersonas">重试</button>
-          </div>
-
-          <div v-else-if="personas.length === 0" class="empty">
-            <div class="icon">📦</div>
-            <p>未找到可用的人格</p>
-            <p class="hint">请确保已安装 Claude Code 并配置了 perspective skills</p>
-          </div>
-
-          <div v-else class="personas-list">
-            <div
-              v-for="persona in personas"
-              :key="persona.skillName"
-              :class="['persona-card', { selected: selectedPersona?.skillName === persona.skillName }]"
-              @click="selectedPersona = persona"
-            >
-              <div class="persona-header">
-                <h3>{{ persona.name }}</h3>
-                <span v-if="persona.isBuiltin" class="builtin-badge">内置</span>
-              </div>
-              <p class="persona-category">{{ persona.category }}</p>
-              <p class="persona-description">{{ persona.description }}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="dialog-footer">
-        <button class="btn-cancel" @click="handleClose">取消</button>
-        <button
-          class="btn-confirm"
-          :disabled="!selectedPersona || activeTab === 'smart'"
-          @click="handleConfirm"
-        >
-          开始重构
-        </button>
-      </div>
-    </div>
-  </div>
-</template>
-```
-
-- [ ] **Step 3: 创建 PersonaDialog.vue（第二部分：脚本）**
+创建 `src/components/persona/PersonaDialog.vue`：
 
 ```vue
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
-import { usePersona } from '@/composables/usePersona'
-import type { Persona } from '@/types/persona'
+import { ref, watch } from 'vue';
+import { usePersona } from '@/composables/usePersona';
+import type { Persona } from '@/types/persona';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
-const props = defineProps<{
-  visible: boolean
-  noteId: number
-}>()
+interface Props {
+  open: boolean;
+  noteId: number;
+}
+
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  close: []
-  confirm: [persona: Persona, mode: 'smart' | 'manual']
-}>()
+  'update:open': [value: boolean];
+  confirm: [persona: Persona, mode: 'smart' | 'manual'];
+}>();
 
-const { scanLocalPersonas } = usePersona()
+const { scanLocalPersonas } = usePersona();
 
-const activeTab = ref<'smart' | 'manual'>('manual')
-const personas = ref<Persona[]>([])
-const selectedPersona = ref<Persona | null>(null)
-const loading = ref(false)
-const error = ref('')
+const personas = ref<Persona[]>([]);
+const selectedPersona = ref<Persona | null>(null);
+const loading = ref(false);
+const error = ref('');
 
 const loadPersonas = async () => {
-  loading.value = true
-  error.value = ''
-  
+  loading.value = true;
+  error.value = '';
   try {
-    personas.value = await scanLocalPersonas()
+    personas.value = await scanLocalPersonas();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : '扫描人格失败'
+    error.value = e instanceof Error ? e.message : '扫描人格失败';
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
-
-const handleClose = () => {
-  emit('close')
-}
+};
 
 const handleConfirm = () => {
   if (selectedPersona.value) {
-    emit('confirm', selectedPersona.value, activeTab.value)
+    emit('confirm', selectedPersona.value, 'manual');
+    emit('update:open', false);
   }
-}
+};
 
-watch(() => props.visible, (visible) => {
-  if (visible) {
-    loadPersonas()
-    selectedPersona.value = null
-  }
-})
+const handleOpenChange = (value: boolean) => {
+  emit('update:open', value);
+};
 
-onMounted(() => {
-  if (props.visible) {
-    loadPersonas()
+watch(() => props.open, (open) => {
+  if (open) {
+    loadPersonas();
+    selectedPersona.value = null;
   }
-})
+});
 </script>
+
+<template>
+  <Dialog :open="open" @update:open="handleOpenChange">
+    <DialogContent class="sm:max-w-[560px]">
+      <DialogHeader>
+        <DialogTitle>人格撰写</DialogTitle>
+      </DialogHeader>
+
+      <Tabs default-value="manual">
+        <TabsList>
+          <TabsTrigger value="manual">手动选择</TabsTrigger>
+          <TabsTrigger value="smart" disabled>智能选择</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="manual" class="mt-4">
+          <div v-if="loading" class="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <div class="mb-3 h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
+            <p class="text-sm">正在扫描本地人格...</p>
+          </div>
+
+          <div v-else-if="error" class="flex flex-col items-center justify-center py-12 text-destructive">
+            <p class="mb-3">{{ error }}</p>
+            <Button variant="outline" size="sm" @click="loadPersonas">重试</Button>
+          </div>
+
+          <div v-else-if="personas.length === 0" class="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <p>未找到可用的人格</p>
+            <p class="mt-1 text-xs">请确保已安装 Claude Code 并配置了 perspective skills</p>
+          </div>
+
+          <div v-else class="grid grid-cols-2 gap-2.5">
+            <div
+              v-for="persona in personas"
+              :key="persona.skillName"
+              class="cursor-pointer rounded-lg border-2 p-3 transition-all hover:border-primary/50"
+              :class="selectedPersona?.skillName === persona.skillName
+                ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                : 'border-border'"
+              @click="selectedPersona = persona"
+            >
+              <div class="mb-1 flex items-center justify-between">
+                <h3 class="text-sm font-semibold">{{ persona.name }}</h3>
+                <Badge v-if="persona.isBuiltin" variant="secondary" class="text-[10px]">内置</Badge>
+              </div>
+              <p class="mb-1 text-xs text-muted-foreground">{{ persona.category }}</p>
+              <p class="line-clamp-2 text-xs text-foreground/70">{{ persona.description }}</p>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="smart" class="mt-4">
+          <div class="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <div class="mb-3 text-4xl">🚧</div>
+            <h3 class="mb-1 text-sm font-semibold">智能选择即将开放</h3>
+            <p class="text-xs">AI 将自动分析笔记内容并推荐最合适的人格风格</p>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      <DialogFooter>
+        <Button variant="outline" @click="handleOpenChange(false)">取消</Button>
+        <Button :disabled="!selectedPersona" @click="handleConfirm">开始重构</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+</template>
 ```
 
-- [ ] **Step 4: 创建 PersonaDialog.vue（第三部分：样式）**
-
-```vue
-<style scoped>
-.dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.dialog-container {
-  background: white;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 700px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
-
-.dialog-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.dialog-header h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: #6b7280;
-  cursor: pointer;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-}
-
-.close-btn:hover {
-  background: #f3f4f6;
-}
-
-.dialog-tabs {
-  display: flex;
-  gap: 8px;
-  padding: 16px 24px 0;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.tab {
-  padding: 8px 16px;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: #6b7280;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.tab.active {
-  color: #6366f1;
-  border-bottom-color: #6366f1;
-}
-
-.dialog-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px;
-}
-
-.tab-content {
-  min-height: 300px;
-}
-
-.coming-soon {
-  text-align: center;
-  padding: 60px 20px;
-}
-
-.coming-soon .icon {
-  font-size: 64px;
-  margin-bottom: 16px;
-}
-
-.coming-soon h3 {
-  margin: 0 0 8px;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.coming-soon p {
-  margin: 0;
-  color: #6b7280;
-  font-size: 14px;
-}
-
-.loading,
-.error,
-.empty {
-  text-align: center;
-  padding: 60px 20px;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #f3f4f6;
-  border-top-color: #6366f1;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.error p {
-  color: #dc2626;
-  margin-bottom: 16px;
-}
-
-.error button {
-  padding: 8px 16px;
-  background: #6366f1;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.empty .icon {
-  font-size: 64px;
-  margin-bottom: 16px;
-}
-
-.empty p {
-  margin: 8px 0;
-  color: #6b7280;
-}
-
-.empty .hint {
-  font-size: 13px;
-}
-
-.personas-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-}
-
-.persona-card {
-  padding: 16px;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.persona-card:hover {
-  border-color: #6366f1;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
-}
-
-.persona-card.selected {
-  border-color: #6366f1;
-  background: #f0f9ff;
-}
-
-.persona-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: start;
-  margin-bottom: 8px;
-}
-
-.persona-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.builtin-badge {
-  padding: 2px 8px;
-  background: #d1fae5;
-  color: #065f46;
-  font-size: 12px;
-  border-radius: 4px;
-}
-
-.persona-category {
-  margin: 0 0 8px;
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.persona-description {
-  margin: 0;
-  font-size: 14px;
-  color: #374151;
-  line-height: 1.5;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 24px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.btn-cancel,
-.btn-confirm {
-  padding: 8px 20px;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-cancel {
-  background: #f3f4f6;
-  color: #374151;
-}
-
-.btn-cancel:hover {
-  background: #e5e7eb;
-}
-
-.btn-confirm {
-  background: #6366f1;
-  color: white;
-}
-
-.btn-confirm:hover:not(:disabled) {
-  background: #4f46e5;
-}
-
-.btn-confirm:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-</style>
-```
-
-- [ ] **Step 5: 验证组件编译**
+- [ ] **Step 3: 验证编译**
 
 ```bash
-npm run type-check
+npm run build
 ```
 
 Expected: 无类型错误
 
-- [ ] **Step 6: 提交人格选择对话框**
+- [ ] **Step 4: 提交**
 
 ```bash
 git add src/components/persona/PersonaDialog.vue
@@ -2182,503 +1567,344 @@ git commit -m "feat(persona): 创建人格选择对话框组件"
 
 ---
 
-## Task 16: 创建内嵌终端组件
+## Task 15: 创建内嵌终端面板组件
 
 **Files:**
-- Create: `src/components/persona/EmbeddedTerminal.vue`
+- Create: `src/components/persona/TerminalPanel.vue`
 
-- [ ] **Step 1: 创建 EmbeddedTerminal.vue（第一部分：模板）**
+- [ ] **Step 1: 创建 TerminalPanel.vue**
 
-```vue
-<template>
-  <div v-if="visible" class="terminal-overlay">
-    <div class="terminal-container">
-      <div class="terminal-header">
-        <div class="terminal-title">
-          <span class="icon">⚡</span>
-          <span>人格重构进行中...</span>
-        </div>
-        <div class="terminal-status">
-          <span :class="['status-dot', statusClass]"></span>
-          <span>{{ statusText }}</span>
-        </div>
-      </div>
-      
-      <div ref="terminalRef" class="terminal-body"></div>
-      
-      <div class="terminal-footer">
-        <button
-          v-if="status === 'completed' || status === 'failed'"
-          class="btn-close"
-          @click="handleClose"
-        >
-          关闭
-        </button>
-        <div v-else class="progress-hint">
-          <span class="spinner-small"></span>
-          <span>正在执行，请稍候...</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
-```
-
-- [ ] **Step 2: 创建 EmbeddedTerminal.vue（第二部分：脚本）**
+创建 `src/components/persona/TerminalPanel.vue`：
 
 ```vue
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
-import { Terminal } from 'xterm'
-import { FitAddon } from 'xterm-addon-fit'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { usePersona } from '@/composables/usePersona'
-import 'xterm/css/xterm.css'
+import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue';
+import { Terminal } from 'xterm';
+import { FitAddon } from 'xterm-addon-fit';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { usePersona } from '@/composables/usePersona';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import 'xterm/css/xterm.css';
 
-const props = defineProps<{
-  visible: boolean
-  sessionId: string
-  noteId: number
-}>()
+interface Props {
+  sessionId: string;
+  noteId: number;
+  personaName: string;
+}
+
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  close: []
-  completed: []
-  failed: [error: string]
-}>()
+  close: [];
+  completed: [];
+  failed: [error: string];
+}>();
 
-const { updateSessionStatus, closeTerminalSession, resizeTerminal } = usePersona()
+const { updateSessionStatus, closeTerminalSession, resizeTerminal } = usePersona();
 
-const terminalRef = ref<HTMLElement | null>(null)
-const status = ref<'running' | 'completed' | 'failed'>('running')
-const errorMessage = ref('')
+const terminalRef = ref<HTMLElement | null>(null);
+const expanded = ref(true);
+const status = ref<'running' | 'completed' | 'failed'>('running');
 
-let terminal: Terminal | null = null
-let fitAddon: FitAddon | null = null
-let unlistenOutput: UnlistenFn | null = null
-let unlistenStatus: UnlistenFn | null = null
+let terminal: Terminal | null = null;
+let fitAddon: FitAddon | null = null;
+let unlistenOutput: UnlistenFn | null = null;
+let unlistenStatus: UnlistenFn | null = null;
 
-const statusClass = computed(() => {
+const statusVariant = computed(() => {
   switch (status.value) {
-    case 'running': return 'running'
-    case 'completed': return 'completed'
-    case 'failed': return 'failed'
-    default: return ''
+    case 'running': return 'secondary' as const;
+    case 'completed': return 'default' as const;
+    case 'failed': return 'destructive' as const;
   }
-})
+});
 
 const statusText = computed(() => {
   switch (status.value) {
-    case 'running': return '执行中'
-    case 'completed': return '已完成'
-    case 'failed': return '执行失败'
-    default: return ''
+    case 'running': return '执行中';
+    case 'completed': return '已完成';
+    case 'failed': return '失败';
   }
-})
+});
 
 const initTerminal = () => {
-  if (!terminalRef.value) return
+  if (!terminalRef.value) return;
 
   terminal = new Terminal({
     cursorBlink: false,
     disableStdin: true,
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Menlo, Monaco, "Courier New", monospace',
     theme: {
       background: '#1e1e1e',
       foreground: '#d4d4d4',
       cursor: '#d4d4d4',
-      black: '#000000',
-      red: '#cd3131',
-      green: '#0dbc79',
-      yellow: '#e5e510',
-      blue: '#2472c8',
-      magenta: '#bc3fbc',
-      cyan: '#11a8cd',
-      white: '#e5e5e5',
-      brightBlack: '#666666',
-      brightRed: '#f14c4c',
-      brightGreen: '#23d18b',
-      brightYellow: '#f5f543',
-      brightBlue: '#3b8eea',
-      brightMagenta: '#d670d6',
-      brightCyan: '#29b8db',
-      brightWhite: '#e5e5e5'
-    }
-  })
+    },
+  });
 
-  fitAddon = new FitAddon()
-  terminal.loadAddon(fitAddon)
-  terminal.open(terminalRef.value)
-  fitAddon.fit()
-
-  // 监听窗口大小变化
-  window.addEventListener('resize', handleResize)
-}
+  fitAddon = new FitAddon();
+  terminal.loadAddon(fitAddon);
+  terminal.open(terminalRef.value);
+  nextTick(() => fitAddon?.fit());
+};
 
 const handleResize = () => {
   if (fitAddon && terminal) {
-    fitAddon.fit()
-    const { rows, cols } = terminal
-    resizeTerminal(props.sessionId, rows, cols).catch(console.error)
+    fitAddon.fit();
+    const { rows, cols } = terminal;
+    resizeTerminal(props.sessionId, rows, cols).catch(console.error);
   }
-}
+};
 
 const setupEventListeners = async () => {
-  // 监听 PTY 输出
   unlistenOutput = await listen<string>('pty-output', (event) => {
     if (terminal && event.payload) {
-      terminal.write(event.payload)
+      terminal.write(event.payload);
     }
-  })
+  });
 
-  // 监听会话状态
   unlistenStatus = await listen<{ sessionId: string; status: string; error?: string }>(
     'session-status',
     async (event) => {
       if (event.payload.sessionId === props.sessionId) {
-        const newStatus = event.payload.status as 'running' | 'completed' | 'failed'
-        status.value = newStatus
-
+        const newStatus = event.payload.status as 'running' | 'completed' | 'failed';
+        status.value = newStatus;
         if (newStatus === 'completed') {
-          await updateSessionStatus(props.sessionId, 'completed')
-          emit('completed')
+          await updateSessionStatus(props.sessionId, 'completed');
+          emit('completed');
         } else if (newStatus === 'failed') {
-          errorMessage.value = event.payload.error || '执行失败'
-          await updateSessionStatus(props.sessionId, 'failed')
-          emit('failed', errorMessage.value)
+          await updateSessionStatus(props.sessionId, 'failed');
+          emit('failed', event.payload.error || '执行失败');
         }
       }
     }
-  )
-}
+  );
+};
 
 const handleClose = async () => {
-  await closeTerminalSession(props.sessionId)
-  emit('close')
-}
+  await closeTerminalSession(props.sessionId).catch(console.error);
+  cleanup();
+  emit('close');
+};
 
 const cleanup = () => {
-  if (unlistenOutput) {
-    unlistenOutput()
-    unlistenOutput = null
-  }
-  if (unlistenStatus) {
-    unlistenStatus()
-    unlistenStatus = null
-  }
+  unlistenOutput?.();
+  unlistenStatus?.();
+  unlistenOutput = null;
+  unlistenStatus = null;
   if (terminal) {
-    terminal.dispose()
-    terminal = null
+    terminal.dispose();
+    terminal = null;
   }
-  window.removeEventListener('resize', handleResize)
-}
-
-watch(() => props.visible, (visible) => {
-  if (visible) {
-    setTimeout(() => {
-      initTerminal()
-      setupEventListeners()
-    }, 100)
-  } else {
-    cleanup()
-  }
-})
+  window.removeEventListener('resize', handleResize);
+};
 
 onMounted(() => {
-  if (props.visible) {
-    initTerminal()
-    setupEventListeners()
-  }
-})
+  initTerminal();
+  setupEventListeners();
+  window.addEventListener('resize', handleResize);
+});
 
 onUnmounted(() => {
-  cleanup()
-})
+  cleanup();
+});
 </script>
+
+<template>
+  <div class="border-t-2 border-primary bg-[#1e1e1e]">
+    <!-- Header bar -->
+    <div class="flex items-center justify-between border-b border-[#3e3e3e] bg-[#2d2d2d] px-4 py-1.5">
+      <div class="flex items-center gap-2">
+        <span
+          class="inline-block h-2 w-2 rounded-full"
+          :class="status === 'running' ? 'animate-pulse bg-yellow-400' : status === 'completed' ? 'bg-green-400' : 'bg-red-400'"
+        />
+        <span class="text-[13px] font-medium text-[#d4d4d4]">⚡ {{ personaName }}</span>
+        <Badge variant="secondary" class="text-[11px] text-[#a0a0a0]">
+          {{ statusText }}
+        </Badge>
+      </div>
+      <div class="flex items-center gap-1">
+        <Button
+          v-if="status === 'completed'"
+          variant="ghost"
+          size="icon-xs"
+          class="text-[#a0a0a0] hover:text-[#d4d4d4]"
+          @click="handleClose"
+        >
+          <span class="text-xs">关闭</span>
+        </Button>
+        <Button
+          v-if="status === 'failed'"
+          variant="ghost"
+          size="icon-xs"
+          class="text-[#a0a0a0] hover:text-[#d4d4d4]"
+          @click="handleClose"
+        >
+          <span class="text-xs">关闭</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          class="text-[#a0a0a0] hover:text-[#d4d4d4]"
+          @click="expanded = !expanded"
+        >
+          {{ expanded ? '收起' : '展开' }}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          class="text-[#a0a0a0] hover:text-[#d4d4d4]"
+          @click="handleClose"
+        >
+          ✕
+        </Button>
+      </div>
+    </div>
+
+    <!-- Terminal body -->
+    <div v-show="expanded" ref="terminalRef" class="overflow-hidden p-2" style="max-height: 200px" />
+  </div>
+</template>
 ```
 
-- [ ] **Step 3: 创建 EmbeddedTerminal.vue（第三部分：样式）**
-
-```vue
-<style scoped>
-.terminal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1001;
-}
-
-.terminal-container {
-  background: #1e1e1e;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 1000px;
-  height: 70vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  overflow: hidden;
-}
-
-.terminal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  background: #2d2d2d;
-  border-bottom: 1px solid #3e3e3e;
-}
-
-.terminal-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #d4d4d4;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.terminal-title .icon {
-  font-size: 18px;
-}
-
-.terminal-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #a0a0a0;
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  animation: pulse 2s infinite;
-}
-
-.status-dot.running {
-  background: #e5e510;
-}
-
-.status-dot.completed {
-  background: #0dbc79;
-  animation: none;
-}
-
-.status-dot.failed {
-  background: #cd3131;
-  animation: none;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-.terminal-body {
-  flex: 1;
-  overflow: hidden;
-  padding: 8px;
-}
-
-.terminal-footer {
-  padding: 12px 20px;
-  background: #2d2d2d;
-  border-top: 1px solid #3e3e3e;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-}
-
-.btn-close {
-  padding: 8px 20px;
-  background: #6366f1;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.btn-close:hover {
-  background: #4f46e5;
-}
-
-.progress-hint {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #a0a0a0;
-  font-size: 13px;
-}
-
-.spinner-small {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #3e3e3e;
-  border-top-color: #6366f1;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-</style>
-```
-
-- [ ] **Step 4: 验证组件编译**
+- [ ] **Step 2: 验证编译**
 
 ```bash
-npm run type-check
+npm run build
 ```
 
 Expected: 无类型错误
 
-- [ ] **Step 5: 提交内嵌终端组件**
+- [ ] **Step 3: 提交**
 
 ```bash
-git add src/components/persona/EmbeddedTerminal.vue
-git commit -m "feat(persona): 创建内嵌终端组件"
+git add src/components/persona/TerminalPanel.vue
+git commit -m "feat(persona): 创建内嵌终端面板组件"
 ```
 
 ---
 
-## Task 17: 修改笔记详情页面集成人格功能
+## Task 16: 集成人格功能到笔记详情页面
 
 **Files:**
 - Modify: `src/components/notes/NoteDetail.vue`
 
-- [ ] **Step 1: 在 NoteDetail.vue 中导入人格组件**
+- [ ] **Step 1: 添加导入**
 
-在 `<script setup>` 部分添加导入：
+在 `src/components/notes/NoteDetail.vue` 的 `<script setup>` 中，在 `import { Badge } from '@/components/ui/badge';` 之后添加：
 
 ```typescript
-import PersonaDialog from '@/components/persona/PersonaDialog.vue'
-import EmbeddedTerminal from '@/components/persona/EmbeddedTerminal.vue'
-import { usePersona } from '@/composables/usePersona'
-import type { Persona } from '@/types/persona'
+import PersonaDialog from '@/components/persona/PersonaDialog.vue';
+import TerminalPanel from '@/components/persona/TerminalPanel.vue';
+import { usePersona } from '@/composables/usePersona';
+import type { Persona } from '@/types/persona';
 ```
 
 - [ ] **Step 2: 添加人格相关状态**
 
-在 `<script setup>` 中添加：
+在 `const emit = defineEmits<...>();` 之后添加：
 
 ```typescript
-const { startPersonaRewrite } = usePersona()
+const { startPersonaRewrite } = usePersona();
 
-const showPersonaDialog = ref(false)
-const showTerminal = ref(false)
-const currentSessionId = ref('')
+const showPersonaDialog = ref(false);
+const showTerminal = ref(false);
+const currentSessionId = ref('');
+const currentPersonaName = ref('');
 ```
 
-- [ ] **Step 3: 实现人格撰写处理函数**
+- [ ] **Step 3: 添加人格处理函数**
+
+在 `function formatDate(...)` 之后添加：
 
 ```typescript
-const handlePersonaRewrite = () => {
-  showPersonaDialog.value = true
-}
-
-const handlePersonaConfirm = async (persona: Persona, mode: 'smart' | 'manual') => {
-  showPersonaDialog.value = false
-  
+async function handlePersonaConfirm(persona: Persona) {
+  showPersonaDialog.value = false;
   try {
-    // 获取笔记文件路径（假设笔记保存在 ~/.omnilink/notes/{id}.md）
-    const notePath = `~/.omnilink/notes/${props.id}.md`
-    
-    // 启动重构会话
+    const notePath = `~/.omnilink/notes/${props.noteDetail.note.file_name}`;
     const sessionId = await startPersonaRewrite({
-      noteId: props.id,
+      noteId: props.noteDetail.note.id,
       notePath,
       personaSkill: persona.skillName,
-      mode
-    })
-    
-    currentSessionId.value = sessionId
-    showTerminal.value = true
+      mode: 'manual',
+    });
+    currentSessionId.value = sessionId;
+    currentPersonaName.value = persona.name;
+    showTerminal.value = true;
   } catch (error) {
-    console.error('启动人格重构失败:', error)
-    alert('启动人格重构失败: ' + (error instanceof Error ? error.message : '未知错误'))
+    console.error('启动人格重构失败:', error);
   }
 }
 
-const handleTerminalClose = () => {
-  showTerminal.value = false
-  currentSessionId.value = ''
+function handleTerminalClose() {
+  showTerminal.value = false;
+  currentSessionId.value = '';
+  currentPersonaName.value = '';
 }
 
-const handleRewriteCompleted = async () => {
-  // 重新加载笔记内容
-  if (notesStore.fetchNoteDetail) {
-    await notesStore.fetchNoteDetail(props.id)
-  }
+async function handleRewriteCompleted() {
+  const detail = await notesApi.getNote(props.noteDetail.note.id);
+  props.noteDetail.note = detail.note;
+  props.noteDetail.content = detail.content;
 }
 
-const handleRewriteFailed = (error: string) => {
-  console.error('人格重构失败:', error)
-  alert('人格重构失败: ' + error)
+function handleRewriteFailed(error: string) {
+  console.error('人格重构失败:', error);
 }
 ```
 
-- [ ] **Step 4: 启用人格撰写按钮**
+- [ ] **Step 4: 启用"人格撰写"按钮**
 
-找到"人格撰写"按钮，移除 `disabled` 属性并添加点击事件：
+将模板中的：
 
 ```vue
-<button
-  class="action-btn"
-  @click="handlePersonaRewrite"
-  title="使用人格重构笔记内容"
->
-  <span class="icon">✨</span>
+<Button variant="secondary" disabled title="功能开发中">
   人格撰写
-</button>
+</Button>
 ```
 
-- [ ] **Step 5: 在模板中添加对话框和终端组件**
-
-在 `<template>` 末尾、关闭标签之前添加：
+替换为：
 
 ```vue
-<!-- 人格选择对话框 -->
-<PersonaDialog
-  :visible="showPersonaDialog"
-  :note-id="props.id"
-  @close="showPersonaDialog = false"
-  @confirm="handlePersonaConfirm"
-/>
-
-<!-- 内嵌终端 -->
-<EmbeddedTerminal
-  v-if="showTerminal"
-  :visible="showTerminal"
-  :session-id="currentSessionId"
-  :note-id="props.id"
-  @close="handleTerminalClose"
-  @completed="handleRewriteCompleted"
-  @failed="handleRewriteFailed"
-/>
+<Button variant="secondary" @click="showPersonaDialog = true">
+  ✨ 人格撰写
+</Button>
 ```
 
-- [ ] **Step 6: 验证类型检查**
+- [ ] **Step 5: 在模板中添加 TerminalPanel**
+
+在模板中 `<div class="flex-1">` 的 MdEditor div 之后、`</template>` 之前添加：
+
+```vue
+  <TerminalPanel
+    v-if="showTerminal"
+    :session-id="currentSessionId"
+    :note-id="noteDetail.note.id"
+    :persona-name="currentPersonaName"
+    @close="handleTerminalClose"
+    @completed="handleRewriteCompleted"
+    @failed="handleRewriteFailed"
+  />
+
+  <PersonaDialog
+    :open="showPersonaDialog"
+    :note-id="noteDetail.note.id"
+    @update:open="showPersonaDialog = $event"
+    @confirm="handlePersonaConfirm"
+  />
+```
+
+- [ ] **Step 6: 验证编译**
 
 ```bash
-npm run type-check
+npm run build
 ```
 
 Expected: 无类型错误
 
-- [ ] **Step 7: 提交笔记详情页面修改**
+- [ ] **Step 7: 提交**
 
 ```bash
 git add src/components/notes/NoteDetail.vue
@@ -2687,247 +1913,34 @@ git commit -m "feat(persona): 集成人格功能到笔记详情页面"
 
 ---
 
-## Task 18: 端到端测试和验证
-
-**Files:**
-- None (testing only)
-
-- [ ] **Step 1: 启动开发服务器**
-
-```bash
-npm run dev:all
-```
-
-Expected: 前端和后端都成功启动
-
-- [ ] **Step 2: 验证内置 skills 初始化**
-
-检查目录是否创建：
-
-```bash
-ls -la ~/.claude/plugins/cache/omnilink-builtin/skills/
-```
-
-Expected: 显示 4 个 .md 文件（房琪 kiki、雷探长、花叔、女娲）
-
-- [ ] **Step 3: 测试人格扫描功能**
-
-1. 打开应用
-2. 进入任意笔记详情页
-3. 点击"人格撰写"按钮
-4. 切换到"手动选择" Tab
-
-Expected: 显示至少 3 个内置人格（房琪 kiki、雷探长、花叔）
-
-- [ ] **Step 4: 测试人格选择**
-
-1. 点击任意人格卡片
-2. 卡片应高亮显示
-3. "开始重构"按钮应变为可用状态
-
-Expected: UI 响应正常
-
-- [ ] **Step 5: 测试终端启动（模拟）**
-
-注意：由于需要真实的 Claude Code CLI，此步骤可能失败。验证：
-
-1. 选择一个人格
-2. 点击"开始重构"
-3. 观察是否弹出终端窗口
-
-Expected: 
-- 如果本地有 Claude Code：终端窗口打开，显示执行过程
-- 如果没有：显示错误提示"启动 claude 命令失败"
-
-- [ ] **Step 6: 检查数据库表**
-
-```bash
-sqlite3 ~/.omnilink/omnilink.db "SELECT * FROM personas;"
-sqlite3 ~/.omnilink/omnilink.db "SELECT * FROM terminal_sessions;"
-```
-
-Expected: 表存在且结构正确
-
-- [ ] **Step 7: 验证编译无警告**
-
-```bash
-cd src-tauri
-cargo build --release
-```
-
-Expected: 编译成功，无警告
-
-- [ ] **Step 8: 提交测试验证记录**
-
-```bash
-git add -A
-git commit -m "test(persona): Phase 1 MVP 功能验证通过"
-```
-
----
-
-## Task 19: 文档和清理
-
-**Files:**
-- Create: `docs/persona-system-usage.md`
-
-- [ ] **Step 1: 创建使用文档**
-
-```markdown
-# 人格系统使用指南
-
-## 概述
-
-人格系统允许你使用不同的"人格 skills"重构笔记内容，让 AI 以特定风格重写你的笔记。
-
-## 前置条件
-
-1. 安装 Claude Code CLI（https://claude.ai/code）
-2. 配置 Claude Code API key
-3. 确保 `claude` 命令在终端中可用
-
-## 使用步骤
-
-### 1. 打开笔记详情
-
-在笔记列表中点击任意笔记，进入详情页面。
-
-### 2. 点击"人格撰写"按钮
-
-在笔记详情页面顶部，点击带有 ✨ 图标的"人格撰写"按钮。
-
-### 3. 选择人格
-
-在弹出的对话框中：
-
-- **手动选择 Tab**：从列表中选择一个人格
-  - 房琪 kiki：旅游攻略风格，文笔优美
-  - 雷探长：探险风格，注重文化和历史
-  - 花叔：技术类风格，深入浅出
-
-- **智能选择 Tab**：（Phase 3 开放）AI 自动分析笔记内容并匹配合适的人格
-
-### 4. 开始重构
-
-点击"开始重构"按钮，系统会：
-
-1. 启动内嵌终端
-2. 调用本地 Claude Code CLI
-3. 使用选定的人格重构笔记内容
-4. 自动保存并刷新笔记
-
-### 5. 查看结果
-
-重构完成后，笔记内容会自动更新为新的风格。
-
-## 内置人格
-
-### 房琪 kiki（旅游攻略类）
-
-- **适用场景**：旅游笔记、游记、景点介绍
-- **风格特点**：文笔优美、善于讲故事、注重情感表达
-- **示例**：将简单的景点记录转化为富有感染力的游记
-
-### 雷探长（旅游攻略类）
-
-- **适用场景**：探险类旅游、文化探索、历史遗迹
-- **风格特点**：探险风格、深入挖掘历史文化、客观记录
-- **示例**：将旅游笔记转化为深度文化探索内容
-
-### 花叔（技术类）
-
-- **适用场景**：技术笔记、学习笔记、代码文档
-- **风格特点**：深入浅出、逻辑清晰、注重实用性
-- **示例**：将技术要点转化为易懂的教程
-
-## 常见问题
-
-### Q: 提示"启动 claude 命令失败"
-
-**A:** 请确保：
-1. 已安装 Claude Code CLI
-2. `claude` 命令在 PATH 中
-3. 已配置 API key（运行 `claude --version` 验证）
-
-### Q: 人格列表为空
-
-**A:** 请确保：
-1. 应用已成功启动（内置人格会自动初始化）
-2. 检查 `~/.claude/plugins/cache/omnilink-builtin/skills/` 目录是否存在
-
-### Q: 重构失败
-
-**A:** 可能原因：
-1. Claude Code API 配额不足
-2. 网络连接问题
-3. 笔记文件路径错误
-
-查看终端输出获取详细错误信息。
-
-## 未来功能（Phase 2 & 3）
-
-- **人格商店**：浏览、搜索、管理更多人格
-- **女娲造人**：自定义创建任意人格
-- **智能选择**：AI 自动匹配最合适的人格
-
-## 技术细节
-
-- 人格 skills 存储在 `~/.claude/plugins/cache/omnilink-builtin/skills/`
-- 会话记录保存在 SQLite 数据库的 `terminal_sessions` 表
-- 使用 PTY（伪终端）与 Claude Code CLI 交互
-```
-
-- [ ] **Step 2: 提交使用文档**
-
-```bash
-git add docs/persona-system-usage.md
-git commit -m "docs(persona): 添加人格系统使用指南"
-```
-
-- [ ] **Step 3: 更新主 README（如果需要）**
-
-在项目根目录的 `README.md` 中添加人格系统功能说明（如果有的话）。
-
-- [ ] **Step 4: 最终提交**
-
-```bash
-git add -A
-git commit -m "feat(persona): Phase 1 MVP 完成 - 人格系统基础功能"
-```
-
----
-
 ## 实现完成总结
 
-Phase 1 MVP 已完成以下功能：
-
 **后端（Rust）：**
-- ✅ 数据库 schema（personas, terminal_sessions 表）
-- ✅ 数据模型（Persona, TerminalSession）
-- ✅ 内置 skills 管理（4 个人格文件 + 初始化逻辑）
-- ✅ 人格扫描器（扫描内置 + 本地 Claude Code skills）
-- ✅ 数据仓库（persona_repo, terminal_session_repo）
-- ✅ PTY 管理器（创建、管理、关闭终端会话）
-- ✅ Tauri 命令（10 个命令接口）
+- 数据库 schema（personas、terminal_sessions 表）
+- 数据模型（Persona、TerminalSession）
+- 内置 skills（4 个人格文件 + 初始化逻辑）
+- 人格扫描器（扫描内置 + 本地 Claude Code skills）
+- 数据仓库（persona_repo、terminal_session_repo）
+- PTY 管理器（创建、管理、关闭终端会话）
+- Tauri 命令（10 个命令接口）
 
-**前端（Vue 3 + TypeScript）：**
-- ✅ 类型定义（Persona, TerminalSession 等）
-- ✅ API 封装（usePersona composable）
-- ✅ 人格选择对话框（智能/手动 Tab 切换）
-- ✅ 内嵌终端组件（xterm.js + 实时输出）
-- ✅ 笔记详情页面集成
-
-**测试和文档：**
-- ✅ 端到端功能验证
-- ✅ 使用文档
+**前端（Vue 3 + shadcn-vue + Tailwind）：**
+- 类型定义（Persona、TerminalSession 等）
+- API 封装（usePersona composable）
+- 人格选择对话框（shadcn Dialog + Tabs）
+- 内嵌终端面板（xterm.js + 可折叠）
+- 笔记详情页面集成
 
 **下一步（Phase 2 - 人格商店）：**
 - 独立的人格管理页面
 - 人格分类、搜索、详情查看
 - 从本地 skills 目录导入人格
 
-**下一步（Phase 3 - 女娲造人）：**
+**下一步（Phase 3 - 女娲造人 + 智能选择）：**
 - 创建新人格功能
-- 调用女娲 skill 生成人格
-- 启用智能选择模式
+- 启用智能选择 Tab
+- AI 自动匹配最合适的人格
+
+
+
 
