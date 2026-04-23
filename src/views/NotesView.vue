@@ -1,6 +1,6 @@
 <template>
-  <div class="notes-view">
-    <div class="notes-sidebar">
+  <div class="flex h-screen bg-background">
+    <div class="w-[300px] shrink-0 border-r border-border overflow-y-auto">
       <NotesList
         :notes="notesStore.notes"
         :selected-id="notesStore.currentNote?.note.id"
@@ -10,14 +10,14 @@
       />
     </div>
 
-    <div class="notes-content">
+    <div class="flex-1 overflow-hidden">
       <NoteDetail
         v-if="notesStore.currentNote"
         :note-detail="notesStore.currentNote"
         @save="handleSaveNote"
         @delete="handleDeleteNote"
       />
-      <div v-else class="empty-state">
+      <div v-else class="flex items-center justify-center h-full text-muted-foreground text-base">
         <p>选择一个笔记或创建新笔记</p>
       </div>
     </div>
@@ -64,31 +64,3 @@ async function handleDeleteNote(id: number) {
   }
 }
 </script>
-
-<style scoped>
-.notes-view {
-  display: flex;
-  height: 100vh;
-  background: #ffffff;
-}
-
-.notes-sidebar {
-  width: 300px;
-  border-right: 1px solid #e5e7eb;
-  overflow-y: auto;
-}
-
-.notes-content {
-  flex: 1;
-  overflow: hidden;
-}
-
-.empty-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #9ca3af;
-  font-size: 16px;
-}
-</style>
