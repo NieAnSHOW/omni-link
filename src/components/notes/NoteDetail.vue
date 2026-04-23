@@ -1,39 +1,49 @@
 <template>
-  <div class="note-detail">
-    <div class="detail-header">
+  <Card class="flex h-full flex-col">
+    <CardHeader class="pb-4">
       <input
         v-model="localTitle"
         type="text"
-        class="title-input"
+        class="w-full border-none bg-transparent text-2xl font-semibold outline-none placeholder:text-muted-foreground"
         placeholder="笔记标题"
         @blur="handleSave"
       />
-      <div class="detail-actions">
-        <button class="btn-save" @click="handleSave" :disabled="saving">
-         保存
-        </button>
-        <button class="btn-ai" disabled title="功能开发中">
+      <div class="mt-3 flex items-center gap-2">
+        <Button :disabled="saving" @click="handleSave">
+          保存
+        </Button>
+        <Button variant="secondary" disabled title="功能开发中">
           人格撰写
-        </button>
-        <button class="btn-delete" @click="handleDelete">
+        </Button>
+        <Button variant="destructive" @click="handleDelete">
           删除
-        </button>
+        </Button>
       </div>
-    </div>
+    </CardHeader>
 
-    <div class="detail-meta">
-      <span>创建于 {{ formatDate(noteDetail.note.created_at) }}</span>
-      <span>更新于 {{ formatDate(noteDetail.note.updated_at) }}</span>
-      <span v-if="saveStatus" :class="saveStatus">{{ saveStatus === 'success' ? '已保存' : '保存失败' }}</span>
-    </div>
+    <CardContent class="flex flex-col gap-0 p-0">
+      <div class="flex items-center gap-4 border-b px-6 py-2 text-sm text-muted-foreground">
+        <span>创建于 {{ formatDate(noteDetail.note.created_at) }}</span>
+        <span>更新于 {{ formatDate(noteDetail.note.updated_at) }}</span>
+        <Badge
+          v-if="saveStatus"
+          :variant="saveStatus === 'success' ? 'default' : 'destructive'"
+          class="ml-auto"
+        >
+          {{ saveStatus === 'success' ? '已保存' : '保存失败' }}
+        </Badge>
+      </div>
 
-    <MdEditor
-      v-model="localContent"
-      :language="'zh-CN'"
-      :style="{ height: 'calc(100vh - 200px)' }"
-      @update:model-value="handleContentChange"
-    />
-  </div>
+      <div class="flex-1">
+        <MdEditor
+          v-model="localContent"
+          :language="'zh-CN'"
+          :style="{ height: 'calc(100vh - 260px)' }"
+          @update:model-value="handleContentChange"
+        />
+      </div>
+    </CardContent>
+  </Card>
 </template>
 
 <script setup lang="ts">
@@ -43,6 +53,9 @@ import { MdEditor } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
 import { notesApi } from '../../composables/useApi';
 import { useNotesStore } from '../../stores/notes';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 interface Props {
   noteDetail: NoteDetail;
@@ -123,114 +136,3 @@ function formatDate(dateStr: string): string {
   return date.toLocaleString('zh-CN');
 }
 </script>
-
-<style scoped>
-.note-detail {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: #ffffff;
-  position: relative;
-}
-
-.detail-header {
-  padding: 16px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.title-input {
-  width: 100%;
-  padding: 8px 0;
-  border: none;
-  font-size: 24px;
-  font-weight: 600;
-  margin-bottom: 12px;
-}
-
-.title-input:focus {
-  outline: none;
-}
-
-.detail-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.detail-actions button {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.btn-save {
-  background: #6366f1;
-  color: white;
-}
-
-.btn-save:hover:not(:disabled) {
-  background: #4f46e5;
-}
-
-.btn-save:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-ai {
-  background: #f3f4f6;
-  color: #9ca3af;
-  cursor: not-allowed;
-}
-
-.btn-delete {
-  background: #fee;
-  color: #dc2626;
-}
-
-.btn-delete:hover {
-  background: #fdd;
-}
-
-.detail-meta {
-  padding: 12px 16px;
-  background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  gap: 16px;
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.save-status {
-  position: absolute;
-  bottom: 24px;
-  right: 24px;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 14px;
-  animation: fadeIn 0.3s;
-}
-
-.save-status.success {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.save-status.error {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-</style>
