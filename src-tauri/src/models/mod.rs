@@ -131,3 +131,6 @@ pub struct NoteDetail {
     pub note: Note,
     pub content: String,
 }
+
+pub mod persona;
+pub mod terminal_session;
