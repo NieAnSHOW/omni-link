@@ -84,12 +84,12 @@ onMounted(async () => {
 
   // 监听 AI 处理完成事件
   unlistenComplete = await listen('ai-process-complete', async () => {
-    toast.show('AI 整理完成', 'success');
+    toast.success('AI 整理完成');
     await loadLinks();
   });
 
   unlistenFailed = await listen('ai-process-failed', async () => {
-    toast.show('AI 整理失败', 'error');
+    toast.error('AI 整理失败');
     await loadLinks();
   });
 });
@@ -153,20 +153,20 @@ function goToDetail(id: number) {
 async function handleAddLinks(urls: string[]) {
   try {
     await api.addLinks(urls);
-    toast.show(`成功添加 ${urls.length} 条知识`, 'success');
+    toast.success(`成功添加 ${urls.length} 条知识`);
     await loadLinks();
   } catch (e) {
-    toast.show('添加失败', 'error');
+    toast.error('添加失败');
   }
 }
 
 async function handleDelete(id: number) {
   try {
     await api.deleteLink(id);
-    toast.show('知识已删除', 'success');
+    toast.success('知识已删除');
     await loadLinks();
   } catch (e) {
-    toast.show('删除失败', 'error');
+    toast.error('删除失败');
   }
 }
 </script>

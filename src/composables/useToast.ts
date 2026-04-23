@@ -1,24 +1,27 @@
-import { ref } from 'vue';
-
-interface ToastItem {
-  id: number;
-  message: string;
-  type: 'success' | 'error';
-}
-
-export const toasts = ref<ToastItem[]>([]);
-let nextId = 0;
+import { useToast as useShadcnToast } from '@/components/ui/toast'
 
 export function useToast() {
-  function show(message: string, type: 'success' | 'error' = 'success') {
-    const id = nextId++;
-    toasts.value.push({ id, message, type });
-    setTimeout(() => remove(id), 2500);
-  }
+  const { toast } = useShadcnToast()
 
-  function remove(id: number) {
-    toasts.value = toasts.value.filter(t => t.id !== id);
+  return {
+    success: (message: string) => {
+      toast({
+        title: '成功',
+        description: message,
+      })
+    },
+    error: (message: string) => {
+      toast({
+        title: '错误',
+        description: message,
+        variant: 'destructive',
+      })
+    },
+    info: (message: string) => {
+      toast({
+        title: '提示',
+        description: message,
+      })
+    },
   }
-
-  return { toasts, show, remove };
 }

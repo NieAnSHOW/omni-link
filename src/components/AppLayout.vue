@@ -40,14 +40,12 @@
     <main class="flex-1 overflow-y-auto px-6">
       <router-view />
     </main>
-    <Toast />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import Toast from './Toast.vue';
 
 const route = useRoute();
 const isLinksActive = computed(() => route.path.startsWith('/links'));

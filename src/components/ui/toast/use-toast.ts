@@ -1,5 +1,4 @@
 import type { Component, VNode } from "vue"
-import type { ToastProps } from "."
 import { computed, ref } from "vue"
 
 const TOAST_LIMIT = 1
@@ -10,11 +9,15 @@ export type StringOrVNode
     | VNode
     | (() => VNode)
 
-type ToasterToast = ToastProps & {
+type ToasterToast = {
   id: string
   title?: string
   description?: StringOrVNode
   action?: Component
+  variant?: "default" | "destructive"
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  [key: string]: unknown
 }
 
 const actionTypes = {

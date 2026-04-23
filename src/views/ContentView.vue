@@ -198,10 +198,10 @@ async function confirmAiProcess() {
 
   try {
     await api.startAiProcess(detail.value.link.id, pendingAiMode.value);
-    toast.show('AI 处理已启动', 'success');
+    toast.success('AI 处理已启动');
     router.push({ name: 'links' });
   } catch (e: any) {
-    toast.show(e?.message || 'AI 处理启动失败', 'error');
+    toast.error(e?.message || 'AI 处理启动失败');
   } finally {
     pendingAiMode.value = '';
   }
@@ -247,28 +247,28 @@ async function parseLink() {
   try {
     const result = await api.parseLink(Number(props.id));
     if (result.error) {
-      toast.show(result.error, 'error');
+      toast.error(result.error);
       await fetchDetail();
     } else {
-      toast.show('解析完成', 'success');
+      toast.success('解析完成');
       await fetchDetail();
       if (detail.value?.content) {
         autoAnalyzing.value = true;
         try {
           await api.analyzeContent(detail.value.content.id);
-          toast.show('AI 摘要完成', 'success');
+          toast.success('AI 摘要完成');
           await fetchDetail();
           await tagsStore.fetchTags();
         } catch (e) {
           console.error(e);
-          toast.show('AI 摘要失败', 'error');
+          toast.error('AI 摘要失败');
         } finally {
           autoAnalyzing.value = false;
         }
       }
     }
   } catch (e) {
-    toast.show('解析失败', 'error');
+    toast.error('解析失败');
   } finally {
     parsing.value = false;
   }
@@ -280,11 +280,11 @@ async function analyzeContent() {
   analyzing.value = true;
   try {
     await api.analyzeContent(detail.value.content.id);
-    toast.show('AI 摘要完成', 'success');
+    toast.success('AI 摘要完成');
     await fetchDetail();
     await tagsStore.fetchTags();
   } catch (e) {
-    toast.show('AI 摘要失败', 'error');
+    toast.error('AI 摘要失败');
   } finally {
     analyzing.value = false;
   }
@@ -305,11 +305,11 @@ async function handleSaveContent(title: string | null, bodyText: string) {
   try {
     const html = marked.parse(bodyText, { async: false });
     await api.updateContent(detail.value.content.id, title, bodyText, html);
-    toast.show('内容已保存', 'success');
+    toast.success('内容已保存');
     isEditing.value = false;
     await fetchDetail();
   } catch (e) {
-    toast.show('保存失败', 'error');
+    toast.error('保存失败');
   } finally {
     savingContent.value = false;
   }

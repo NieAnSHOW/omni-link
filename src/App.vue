@@ -13,6 +13,7 @@
   <template v-else>
     <AppLayout />
     <ScrollToTop />
+    <Toaster />
   </template>
 </template>
 
@@ -20,6 +21,7 @@
 import { ref, onMounted } from 'vue';
 import AppLayout from './components/AppLayout.vue';
 import ScrollToTop from './components/ScrollToTop.vue';
+import { Toaster } from '@/components/ui/toast';
 
 const SPLASH_DURATION = 1200;
 const FADE_DURATION = 300;
