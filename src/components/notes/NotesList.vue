@@ -25,7 +25,7 @@
           :key="note.id"
           class="cursor-pointer border-b px-4 py-4 transition-colors last:border-b-0 hover:bg-muted/50"
           :class="{
-            'border-l-3 border-l-primary bg-primary/5': note.id === selectedId,
+            'border-l-[3px] border-l-primary bg-primary/5': note.id === selectedId,
           }"
           @click="$emit('select', note.id)"
         >

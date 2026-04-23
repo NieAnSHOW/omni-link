@@ -54,13 +54,14 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useTagsStore } from '../stores/tags';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 const store = useTagsStore();
-const { tags, loading } = store;
+const { tags, loading } = storeToRefs(store);
 
 const showAdd = ref(false);
 const newName = ref('');
@@ -69,8 +70,8 @@ const search = ref('');
 
 const filteredTags = computed(() => {
   const q = search.value.toLowerCase().trim();
-  if (!q) return tags;
-  return tags.filter(t => t.name.toLowerCase().includes(q));
+  if (!q) return tags.value;
+  return tags.value.filter((t: { name: string }) => t.name.toLowerCase().includes(q));
 });
 
 onMounted(() => store.fetchTags());

@@ -150,16 +150,11 @@ import { useTagsStore } from '../stores/tags';
 import TagInput from '../components/TagInput.vue';
 import ContentEditor from '../components/ContentEditor.vue';
 import StickyHeader from '../components/StickyHeader.vue';
-import Button from '@/components/ui/button/Button.vue';
-import Badge from '@/components/ui/badge/Badge.vue';
-import Card from '@/components/ui/card/Card.vue';
-import CardContent from '@/components/ui/card/CardContent.vue';
-import Skeleton from '@/components/ui/skeleton/Skeleton.vue';
-import Dialog from '@/components/ui/dialog/Dialog.vue';
-import DialogContent from '@/components/ui/dialog/DialogContent.vue';
-import DialogHeader from '@/components/ui/dialog/DialogHeader.vue';
-import DialogTitle from '@/components/ui/dialog/DialogTitle.vue';
-import DialogFooter from '@/components/ui/dialog/DialogFooter.vue';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { LinkDetail, TagWithCount } from '../types/index';
 
 const props = defineProps<{ id: string }>();
@@ -216,14 +211,6 @@ async function fetchDetail() {
   loading.value = true;
   try {
     detail.value = await api.getLinkDetail(Number(props.id));
-    console.log('[ContentView] fetchDetail:', {
-      linkId: detail.value?.link.id,
-      status: detail.value?.link.status,
-      hasContent: !!detail.value?.content,
-      bodyTextLen: detail.value?.content?.body_text?.length ?? 0,
-      bodyHtmlLen: detail.value?.content?.body_html?.length ?? 0,
-      contentStatus: detail.value?.content?.content_status,
-    });
     if (detail.value?.content && detail.value?.ai) {
       contentTags.value = detail.value.ai.tags.map(name => {
         const existing = tagsStore.tags.find(t => t.name === name);

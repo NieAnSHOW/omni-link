@@ -37,7 +37,7 @@
         </router-link>
       </nav>
     </aside>
-    <main class="flex-1 overflow-y-auto px-6">
+    <main class="main-content flex-1 overflow-y-auto px-6">
       <router-view />
     </main>
   </div>
