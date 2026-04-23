@@ -1,26 +1,32 @@
 <template>
-  <div class="links-view">
-    <div class="page-header">
-      <h2>我的知识库</h2>
-      <button class="btn-primary" @click="showDialog = true">+ 添加知识</button>
+  <div class="w-full">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="text-2xl font-semibold">我的知识库</h2>
+      <Button @click="showDialog = true">+ 添加知识</Button>
     </div>
 
-    <div class="filters">
-      <button v-for="f in filters" :key="f.value"
-        :class="['filter-btn', { active: activeFilter === f.value }]"
-        @click="setFilter(f.value)">
+    <div class="flex gap-2 mb-4">
+      <Button
+        v-for="f in filters"
+        :key="f.value"
+        :variant="activeFilter === f.value ? 'default' : 'outline'"
+        size="sm"
+        @click="setFilter(f.value)"
+      >
         {{ f.label }}
-      </button>
+      </Button>
     </div>
 
-    <div v-if="loading" class="masonry">
-      <div v-for="col in columnCount" :key="col" class="masonry-col">
+    <div v-if="loading" class="flex gap-3 items-start">
+      <div v-for="col in columnCount" :key="col" class="flex-1 flex flex-col gap-3">
         <LinkCardSkeleton v-for="i in skeletonRows(col)" :key="i" />
       </div>
     </div>
-    <div v-else-if="links.length === 0" class="empty-state">还没有知识，点击上方按钮添加</div>
-    <div v-else class="masonry">
-      <div v-for="(col, ci) in masonryColumns" :key="ci" class="masonry-col">
+    <div v-else-if="links.length === 0" class="text-center text-muted-foreground py-10">
+      还没有知识，点击上方按钮添加
+    </div>
+    <div v-else class="flex gap-3 items-start">
+      <div v-for="(col, ci) in masonryColumns" :key="ci" class="flex-1 flex flex-col gap-3">
         <LinkCard
           v-for="link in col"
           :key="link.id"
@@ -47,6 +53,7 @@ import { useLinksStore } from '../stores/links';
 import { useApi } from '../composables/useApi';
 import { listen } from '@tauri-apps/api/event';
 import { useToast } from '../composables/useToast';
+import { Button } from '@/components/ui/button';
 import LinkCard from '../components/LinkCard.vue';
 import LinkCardSkeleton from '../components/LinkCardSkeleton.vue';
 import AddLinkDialog from '../components/AddLinkDialog.vue';
@@ -163,32 +170,3 @@ async function handleDelete(id: number) {
   }
 }
 </script>
-
-<style scoped>
-.links-view { width: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-header h2 { font-size: 22px; }
-.btn-primary {
-  padding: 8px 16px; background: #6366f1; color: white;
-  border: none; border-radius: 8px; font-size: 14px; cursor: pointer;
-}
-.filters { display: flex; gap: 8px; margin-bottom: 16px; }
-.filter-btn {
-  padding: 6px 14px; border: 1px solid #e2e8f0; background: white;
-  border-radius: 6px; font-size: 13px; cursor: pointer; color: #64748b;
-}
-.filter-btn.active { background: #6366f1; color: white; border-color: #6366f1; }
-.masonry {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-.masonry-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.empty-state { text-align: center; color: #94a3b8; padding: 40px; }
-</style>
