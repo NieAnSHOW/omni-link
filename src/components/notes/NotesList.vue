@@ -1,41 +1,52 @@
 <template>
-  <div class="notes-list">
-    <div class="list-header">
-      <input
-        v-model="searchQuery"
-        type="text"
-        placeholder="搜索笔记..."
-        class="search-input"
-      />
-      <button class="btn-create" @click="$emit('create')">
-        + 新建笔记
-      </button>
-    </div>
+  <Card class="flex h-full flex-col">
+    <CardHeader class="pb-4">
+      <div class="flex flex-col gap-3">
+        <Input
+          v-model="searchQuery"
+          placeholder="搜索笔记..."
+        />
+        <Button class="w-full" @click="$emit('create')">
+          + 新建笔记
+        </Button>
+      </div>
+    </CardHeader>
 
-    <div v-if="loading" class="loading">加载中...</div>
-    <div v-else-if="filteredNotes.length === 0" class="empty">
-      {{ searchQuery ? '未找到匹配的笔记' : '暂无笔记' }}
-    </div>
-    <div v-else class="notes-items">
-      <div
-        v-for="note in filteredNotes"
-        :key="note.id"
-        class="note-item"
-        :class="{ active: note.id === selectedId }"
-        @click="$emit('select', note.id)"
-      >
-        <div class="note-title">{{ note.title || '未命名笔记' }}</div>
-        <div class="note-meta">
-          <span class="note-time">{{ formatTime(note.updated_at) }}</span>
+    <CardContent class="flex-1 overflow-y-auto p-0">
+      <div v-if="loading" class="px-4 py-8 text-center text-sm text-muted-foreground">
+        加载中...
+      </div>
+      <div v-else-if="filteredNotes.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">
+        {{ searchQuery ? '未找到匹配的笔记' : '暂无笔记' }}
+      </div>
+      <div v-else class="flex flex-col">
+        <div
+          v-for="note in filteredNotes"
+          :key="note.id"
+          class="cursor-pointer border-b px-4 py-4 transition-colors last:border-b-0 hover:bg-muted/50"
+          :class="{
+            'border-l-3 border-l-primary bg-primary/5': note.id === selectedId,
+          }"
+          @click="$emit('select', note.id)"
+        >
+          <div class="mb-1.5 truncate text-[15px] font-medium text-foreground">
+            {{ note.title || '未命名笔记' }}
+          </div>
+          <div class="text-xs text-muted-foreground">
+            {{ formatTime(note.updated_at) }}
+          </div>
         </div>
       </div>
-    </div>
-  </div>
+    </CardContent>
+  </Card>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import type { Note } from '../../types/index';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 interface Props {
   notes: Note[];
@@ -71,92 +82,3 @@ function formatTime(dateStr: string): string {
   return date.toLocaleDateString('zh-CN');
 }
 </script>
-
-<style scoped>
-.notes-list {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: #ffffff;
-}
-
-.list-header {
-  padding: 16px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.search-input {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  font-size: 14px;
-  margin-bottom: 12px;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: #6366f1;
-}
-
-.btn-create {
-  width: 100%;
-  padding: 10px;
-  background: #6366f1;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.btn-create:hover {
-  background: #4f46e5;
-}
-
-.loading,
-.empty {
-  padding: 32px 16px;
-  text-align: center;
-  color: #9ca3af;
-  font-size: 14px;
-}
-
-.notes-items {
-  flex: 1;
-  overflow-y: auto;
-}
-
-.note-item {
-  padding: 16px;
-  border-bottom: 1px solid #f3f4f6;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.note-item:hover {
-  background: #f9fafb;
-}
-
-.note-item.active {
-  background: #eef2ff;
-  border-left: 3px solid #6366f1;
-}
-
-.note-title {
-  font-size: 15px;
-  font-weight: 500;
-  color: #1f2937;
-  margin-bottom: 6px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.note-meta {
-  display: flex;
-  gap: 12px;
-  font-size: 12px;
-  color: #9ca3af;
-}
-</style>
