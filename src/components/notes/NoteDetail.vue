@@ -9,7 +9,7 @@
     <Button variant="secondary" @click="showPersonaDialog = true">
       ✨ 人格撰写
     </Button>
-    <Button v-if="showTerminal" variant="outline" @click="showTerminalDialog = true">
+    <Button v-if="currentSessionId" variant="outline" @click="reopenTerminal">
       🖥️ 查看终端
     </Button>
     <Button variant="destructive" @click="handleDelete">
@@ -178,14 +178,22 @@ function handleTerminalClose() {
 
 function handleTerminalDialogChange(open: boolean) {
   if (!open) {
+    showTerminal.value = false;
     showTerminalDialog.value = false;
   }
+}
+
+function reopenTerminal() {
+  showTerminal.value = true;
+  showTerminalDialog.value = true;
 }
 
 async function handleRewriteCompleted() {
   const detail = await notesApi.getNote(props.noteDetail.note.id);
   props.noteDetail.note = detail.note;
   props.noteDetail.content = detail.content;
+  localTitle.value = detail.note.title;
+  localContent.value = detail.content;
 }
 
 function handleRewriteFailed(error: string) {

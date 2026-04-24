@@ -83,10 +83,18 @@ const setupEventListeners = async () => {
         const newStatus = event.payload.status as 'running' | 'completed' | 'failed';
         status.value = newStatus;
         if (newStatus === 'completed') {
-          await updateSessionStatus(props.sessionId, 'completed');
+          try {
+            await updateSessionStatus(props.sessionId, 'completed');
+          } catch (e) {
+            console.error('updateSessionStatus failed:', e);
+          }
           emit('completed');
         } else if (newStatus === 'failed') {
-          await updateSessionStatus(props.sessionId, 'failed');
+          try {
+            await updateSessionStatus(props.sessionId, 'failed');
+          } catch (e) {
+            console.error('updateSessionStatus failed:', e);
+          }
           emit('failed', event.payload.error || '执行失败');
         }
       }

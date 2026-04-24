@@ -5,6 +5,7 @@ use tauri::{AppHandle, Emitter, State};
 use crate::db::DbState;
 use crate::error::AppResult;
 use crate::models::terminal_session::{CreateTerminalSession, TerminalSession};
+use crate::persona::initialize_builtin_skills;
 use crate::repositories::terminal_session_repo;
 use crate::terminal::PtyManager;
 
@@ -21,6 +22,9 @@ pub async fn start_persona_rewrite(
     pty_manager: State<'_, PtyManagerState>,
 ) -> AppResult<String> {
     tracing::info!("start_persona_rewrite called: note_id={}, persona_skill={}, mode={}", note_id, persona_skill, mode);
+
+    // 确保内置 skill 文件在磁盘上存在（可能被 Claude Code 清理缓存时删除）
+    initialize_builtin_skills()?;
 
     let conn = db.0.lock().unwrap();
 

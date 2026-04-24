@@ -2,6 +2,7 @@ use portable_pty::{Child, MasterPty, PtySize};
 use std::io::{Read, Write};
 use tauri::Emitter;
 
+use libc;
 use crate::error::{AppError, AppResult};
 
 pub struct PtySession {
@@ -42,10 +43,47 @@ impl PtySession {
     pub fn start_output_loop(&mut self, app_handle: tauri::AppHandle) -> AppResult<()> {
         let reader = match self.reader.take() {
             Some(r) => r,
-            None => return Ok(()),
+            None => {
+                // Reader already started (first call was during create_session).
+                // The frontend is re-connecting after mount — re-emit current status
+                // in case the original event was emitted before the listener registered.
+                let should_emit = match self.child.try_wait() {
+                    Ok(Some(_)) => {
+                        tracing::info!(
+                            "[pty-session] re-emitting completed status for session {} (child already exited)",
+                            self.id
+                        );
+                        true
+                    }
+                    Ok(None) => false,
+                    Err(e) => {
+                        // ECHILD: process already reaped by PID monitor thread = exited
+                        tracing::info!(
+                            "[pty-session] try_wait error for session {}: {} — treating as completed",
+                            self.id, e
+                        );
+                        true
+                    }
+                };
+                if should_emit {
+                    let _ = app_handle.emit(
+                        "session-status",
+                        serde_json::json!({
+                            "sessionId": self.id,
+                            "status": "completed",
+                        }),
+                    );
+                }
+                return Ok(());
+            }
         };
         let session_id = self.id.clone();
         let mut child_killer = self.child.clone_killer();
+        let child_pid = self.child.process_id();
+
+        let app_for_monitor = app_handle.clone();
+        let sid_for_monitor = session_id.clone();
+
         let handle = std::thread::spawn(move || {
             tracing::info!("[pty-reader] thread started for session {}", session_id);
             let mut reader = reader;
@@ -100,6 +138,84 @@ impl PtySession {
             tracing::info!("[pty-reader] thread exiting for session {}", session_id);
             let _ = child_killer.kill();
         });
+
+        // PID-based completion detection: poll child process liveness
+        // This handles cases where PTY EOF is not triggered after Claude exits.
+        // Uses waitpid(WNOHANG) instead of kill -0 because kill -0 succeeds on
+        // zombie processes, which would prevent completion detection.
+        if let Some(pid) = child_pid {
+            let app = app_for_monitor;
+            let sid = sid_for_monitor;
+            std::thread::spawn(move || {
+                tracing::info!("[pid-monitor] watching PID {} for session {}", pid, sid);
+                let start = std::time::Instant::now();
+                loop {
+                    let wait_result = unsafe {
+                        libc::waitpid(pid as i32, std::ptr::null_mut(), libc::WNOHANG)
+                    };
+                    match wait_result {
+                        0 => {
+                            // Process still running
+                        }
+                        p if p == pid as i32 => {
+                            tracing::info!("[pid-monitor] PID {} exited for session {}", pid, sid);
+                            let _ = app.emit(
+                                "session-status",
+                                serde_json::json!({
+                                    "sessionId": sid,
+                                    "status": "completed",
+                                }),
+                            );
+                            break;
+                        }
+                        -1 => {
+                            let err = std::io::Error::last_os_error();
+                            if err.raw_os_error() == Some(libc::ECHILD) {
+                                // Process does not exist (already reaped or never existed)
+                                tracing::info!(
+                                    "[pid-monitor] PID {} not found (ECHILD) for session {}",
+                                    pid, sid
+                                );
+                                let _ = app.emit(
+                                    "session-status",
+                                    serde_json::json!({
+                                        "sessionId": sid,
+                                        "status": "completed",
+                                    }),
+                                );
+                                break;
+                            }
+                            tracing::warn!(
+                                "[pid-monitor] waitpid error for PID {} session {}: {}",
+                                pid, sid, err
+                            );
+                        }
+                        _ => {
+                            tracing::warn!(
+                                "[pid-monitor] unexpected waitpid result {} for PID {} session {}",
+                                wait_result, pid, sid
+                            );
+                        }
+                    }
+                    if start.elapsed() > std::time::Duration::from_secs(600) {
+                        tracing::warn!(
+                            "[pid-monitor] timeout for session {} — emitting completed as fallback",
+                            sid
+                        );
+                        let _ = app.emit(
+                            "session-status",
+                            serde_json::json!({
+                                "sessionId": sid,
+                                "status": "completed",
+                            }),
+                        );
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+                }
+                tracing::info!("[pid-monitor] exiting for session {}", sid);
+            });
+        }
 
         self.reader_handle = Some(handle);
         Ok(())

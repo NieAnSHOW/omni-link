@@ -2,28 +2,39 @@ use std::fs;
 use std::path::Path;
 use crate::error::{AppError, AppResult};
 use crate::models::persona::Persona;
-use super::builtin::get_builtin_skills_dir;
+use super::builtin::{get_builtin_skills_dir, get_builtin_personas};
 
 pub fn scan_local_skills() -> AppResult<Vec<Persona>> {
-    let mut personas = Vec::new();
+    let mut personas = get_builtin_personas();
 
     let builtin_dir = get_builtin_skills_dir();
     if builtin_dir.exists() {
-        personas.extend(scan_skills_directory(&builtin_dir, true)?);
+        if let Ok(extra) = scan_skills_directory(&builtin_dir, true) {
+            for p in extra {
+                if !personas.iter().any(|existing| existing.skill_name == p.skill_name) {
+                    personas.push(p);
+                }
+            }
+        }
     }
 
     let cache_dir = dirs::home_dir()
         .expect("Cannot determine home directory")
         .join(".claude/plugins/cache");
 
-    if cache_dir.exists() {
-        for entry in fs::read_dir(&cache_dir)? {
-            let entry = entry?;
+    if let Ok(entries) = fs::read_dir(&cache_dir) {
+        for entry in entries.flatten() {
             let plugin_dir = entry.path();
             if plugin_dir.is_dir() {
                 let skills_path = plugin_dir.join("skills");
                 if skills_path.exists() {
-                    personas.extend(scan_skills_directory(&skills_path, false)?);
+                    if let Ok(skills) = scan_skills_directory(&skills_path, false) {
+                        for p in skills {
+                            if !personas.iter().any(|existing| existing.skill_name == p.skill_name) {
+                                personas.push(p);
+                            }
+                        }
+                    }
                 }
             }
         }
