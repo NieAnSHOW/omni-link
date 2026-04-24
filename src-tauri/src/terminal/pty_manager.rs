@@ -1,5 +1,6 @@
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::collections::HashMap;
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 use tauri::AppHandle;
 
@@ -55,6 +56,32 @@ impl PtyManager {
             .spawn_command(cmd)
             .map_err(|e| AppError::Parse(e.to_string()))?;
 
+        // Take writer for auto-accepting bypass permissions warning
+        let mut accept_writer = pair
+            .master
+            .take_writer()
+            .map_err(|e| AppError::Parse(e.to_string()))?;
+
+        let sid_for_accept = session_id.clone();
+        std::thread::spawn(move || {
+            tracing::info!("[auto-accept] waiting for bypass confirmation for session {}", sid_for_accept);
+            std::thread::sleep(std::time::Duration::from_millis(2000));
+            // Down arrow to select "Yes, I accept"
+            if let Err(e) = accept_writer.write_all(b"\x1b[B") {
+                tracing::warn!("[auto-accept] failed to send down arrow: {}", e);
+                return;
+            }
+            let _ = accept_writer.flush();
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            // Enter to confirm
+            if let Err(e) = accept_writer.write_all(b"\r") {
+                tracing::warn!("[auto-accept] failed to send enter: {}", e);
+                return;
+            }
+            let _ = accept_writer.flush();
+            tracing::info!("[auto-accept] sent acceptance keystrokes for session {}", sid_for_accept);
+        });
+
         let mut session = PtySession {
             id: session_id.clone(),
             master: pair.master,
@@ -64,8 +91,6 @@ impl PtyManager {
             reader: Some(reader),
             reader_handle: None,
         };
-
-        session.start_output_loop(_app_handle.clone())?;
 
         let mut sessions = self.sessions.lock().unwrap();
         sessions.insert(session_id, session);

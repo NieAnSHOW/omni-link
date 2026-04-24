@@ -44,8 +44,8 @@ impl PtySession {
         let reader = match self.reader.take() {
             Some(r) => r,
             None => {
-                // Reader already started (first call was during create_session).
-                // The frontend is re-connecting after mount — re-emit current status
+                // Reader already taken by a prior start_output_loop call.
+                // The frontend is re-connecting after re-mount — re-emit current status
                 // in case the original event was emitted before the listener registered.
                 let should_emit = match self.child.try_wait() {
                     Ok(Some(_)) => {
@@ -110,13 +110,14 @@ impl PtySession {
                     Ok(n) => {
                         total_bytes += n as u64;
                         read_count += 1;
+                        let output = String::from_utf8_lossy(&buf[..n]).to_string();
                         if read_count <= 5 {
+                            let sample: String = output.chars().take(200).collect();
                             tracing::debug!(
-                                "[pty-reader] read {} bytes (total={}) for session {}",
-                                n, total_bytes, session_id
+                                "[pty-reader] read {} bytes (total={}) for session {}: {:?}",
+                                n, total_bytes, session_id, sample
                             );
                         }
-                        let output = String::from_utf8_lossy(&buf[..n]).to_string();
                         let _ = app_handle.emit("pty-output", output);
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
@@ -140,25 +141,30 @@ impl PtySession {
         });
 
         // PID-based completion detection: poll child process liveness
-        // This handles cases where PTY EOF is not triggered after Claude exits.
-        // Uses waitpid(WNOHANG) instead of kill -0 because kill -0 succeeds on
-        // zombie processes, which would prevent completion detection.
         if let Some(pid) = child_pid {
             let app = app_for_monitor;
             let sid = sid_for_monitor;
             std::thread::spawn(move || {
                 tracing::info!("[pid-monitor] watching PID {} for session {}", pid, sid);
                 let start = std::time::Instant::now();
+                let mut log_tick = 0u64;
                 loop {
                     let wait_result = unsafe {
                         libc::waitpid(pid as i32, std::ptr::null_mut(), libc::WNOHANG)
                     };
                     match wait_result {
                         0 => {
-                            // Process still running
+                            log_tick += 1;
+                            if log_tick % 15 == 0 {
+                                tracing::debug!(
+                                    "[pid-monitor] PID {} still running for session {} (elapsed {:?})",
+                                    pid, sid, start.elapsed()
+                                );
+                            }
                         }
                         p if p == pid as i32 => {
                             tracing::info!("[pid-monitor] PID {} exited for session {}", pid, sid);
+                            unsafe { libc::kill(-(pid as i32), libc::SIGKILL); }
                             let _ = app.emit(
                                 "session-status",
                                 serde_json::json!({
@@ -171,7 +177,6 @@ impl PtySession {
                         -1 => {
                             let err = std::io::Error::last_os_error();
                             if err.raw_os_error() == Some(libc::ECHILD) {
-                                // Process does not exist (already reaped or never existed)
                                 tracing::info!(
                                     "[pid-monitor] PID {} not found (ECHILD) for session {}",
                                     pid, sid
@@ -197,16 +202,18 @@ impl PtySession {
                             );
                         }
                     }
-                    if start.elapsed() > std::time::Duration::from_secs(600) {
+                    if start.elapsed() > std::time::Duration::from_secs(120) {
                         tracing::warn!(
-                            "[pid-monitor] timeout for session {} — emitting completed as fallback",
-                            sid
+                            "[pid-monitor] timeout for session {} after {:?} — killing process group, reporting failure",
+                            sid, start.elapsed()
                         );
+                        unsafe { libc::kill(-(pid as i32), libc::SIGKILL); }
                         let _ = app.emit(
                             "session-status",
                             serde_json::json!({
                                 "sessionId": sid,
-                                "status": "completed",
+                                "status": "failed",
+                                "error": format!("执行超时 ({:.0}s)", start.elapsed().as_secs_f64()),
                             }),
                         );
                         break;
