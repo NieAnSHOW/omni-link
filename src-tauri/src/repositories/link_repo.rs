@@ -25,13 +25,13 @@ pub fn create_link(conn: &Connection, url: &str, title: Option<&str>, source: Op
 
 pub fn get_link_by_url(conn: &Connection, url: &str) -> AppResult<Option<Link>> {
     let mut stmt = conn.prepare("SELECT * FROM links WHERE url = ?")?;
-    let link = stmt.query_row(params![url], |row| row_to_link(row)).ok();
+    let link = stmt.query_row(params![url], row_to_link).ok();
     Ok(link)
 }
 
 pub fn get_link_by_id(conn: &Connection, id: i64) -> AppResult<Option<Link>> {
     let mut stmt = conn.prepare("SELECT * FROM links WHERE id = ?")?;
-    let link = stmt.query_row(params![id], |row| row_to_link(row)).ok();
+    let link = stmt.query_row(params![id], row_to_link).ok();
     Ok(link)
 }
 
@@ -46,7 +46,7 @@ pub fn get_links(conn: &Connection, limit: i64, offset: i64, status: Option<&str
             tracing::error!("Database error on get_links prepare: {}", e);
             e
         })?;
-        let rows = stmt.query_map(params![s, limit, offset], |row| row_to_link(row)).map_err(|e| {
+        let rows = stmt.query_map(params![s, limit, offset], row_to_link).map_err(|e| {
             tracing::error!("Database error on get_links query_map: {}", e);
             e
         })?;
@@ -63,7 +63,7 @@ pub fn get_links(conn: &Connection, limit: i64, offset: i64, status: Option<&str
             tracing::error!("Database error on get_links prepare: {}", e);
             e
         })?;
-        let rows = stmt.query_map(params![limit, offset], |row| row_to_link(row)).map_err(|e| {
+        let rows = stmt.query_map(params![limit, offset], row_to_link).map_err(|e| {
             tracing::error!("Database error on get_links query_map: {}", e);
             e
         })?;

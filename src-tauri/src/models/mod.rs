@@ -14,6 +14,7 @@ pub struct Link {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct Content {
     pub id: i64,
     pub link_id: i64,
@@ -40,6 +41,7 @@ pub struct ContentParsed {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct AiResult {
     pub id: i64,
     pub content_id: i64,
@@ -71,6 +73,7 @@ pub struct LinksResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct CreateLinkInput {
     pub url: String,
     #[allow(dead_code)]
@@ -111,3 +114,23 @@ pub struct UpdateContentInput {
     pub body_text: Option<String>,
     pub body_html: Option<String>,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Note {
+    pub id: i64,
+    pub title: String,
+    pub file_name: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub file_size: i64,
+    pub word_count: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NoteDetail {
+    pub note: Note,
+    pub content: String,
+}
+
+pub mod persona;
+pub mod terminal_session;

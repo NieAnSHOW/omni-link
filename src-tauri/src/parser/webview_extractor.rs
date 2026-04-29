@@ -114,7 +114,7 @@ pub async fn extract_via_webview(app: &AppHandle, url: &str) -> AppResult<Webvie
                 eprintln!("[WV-{}] eval(readability) => {:?}", unique_id, r1);
                 let r2 = webview_window.eval(&turndown_js);
                 eprintln!("[WV-{}] eval(turndown) => {:?}", unique_id, r2);
-                let r3 = webview_window.eval(&format!(
+                let r3 = webview_window.eval(format!(
                     "window.__EXTRACT_EVENT_NAME__ = '{}';",
                     event_name_clone
                 ));

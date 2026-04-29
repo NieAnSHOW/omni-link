@@ -1,120 +1,143 @@
 <template>
-  <div class="content-view">
-    <StickyHeader :z-index="30" background="#ffffff">
-      <button class="btn-back" @click="router.back()">← 返回</button>
+  <div class="flex min-h-full flex-col">
+    <StickyHeader>
+      <Button variant="ghost" size="sm" @click="router.back()">
+        &larr; 返回
+      </Button>
     </StickyHeader>
 
-    <div v-if="loading" class="skeleton-detail">
-      <div class="skeleton-bar" style="width: 60%; height: 24px; margin-bottom: 12px;"></div>
-      <div class="skeleton-bar" style="width: 30%; height: 18px; margin-bottom: 20px;"></div>
-      <div class="skeleton-bar" style="width: 100%; height: 16px; margin-bottom: 8px;"></div>
-      <div class="skeleton-bar" style="width: 100%; height: 16px; margin-bottom: 8px;"></div>
-      <div class="skeleton-bar" style="width: 85%; height: 16px; margin-bottom: 8px;"></div>
-      <div class="skeleton-bar" style="width: 90%; height: 16px; margin-bottom: 8px;"></div>
-      <div class="skeleton-bar" style="width: 40%; height: 16px;"></div>
+    <!-- Loading skeleton -->
+    <div v-if="loading" class="flex flex-col gap-3 p-6">
+      <Skeleton class="h-6 w-3/5" />
+      <Skeleton class="h-4 w-1/3" />
+      <div class="flex flex-col gap-2 pt-2">
+        <Skeleton class="h-4 w-full" />
+        <Skeleton class="h-4 w-full" />
+        <Skeleton class="h-4 w-4/5" />
+        <Skeleton class="h-4 w-[90%]" />
+        <Skeleton class="h-4 w-2/5" />
+      </div>
     </div>
-    <div v-else-if="!detail" class="empty-state">内容不存在</div>
+
+    <!-- Empty state -->
+    <div v-else-if="!detail" class="flex flex-1 items-center justify-center p-10 text-muted-foreground">
+      内容不存在
+    </div>
+
+    <!-- Main content -->
     <template v-else>
-      <StickyHeader :top-offset="34" :z-index="30" background="#ffffff">
-        <div class="content-header">
-          <div class="top-btn">
-            <h2>{{ detail.link.title || '未命名' }}</h2>
-            <div class="actions">
-              <button v-if="detail.link.status !== 'parsing'" class="btn-primary" @click="parseLink"
-                :disabled="parsing">
-                {{ parsing ? '解析中...' : (detail.content ? '重新解析' : '解析内容') }}
-              </button>
-              <button v-if="detail.content" class="btn-secondary" @click="analyzeContent" :disabled="analyzing">
-                {{ analyzing ? '摘要生成中...' : (detail.ai ? '重新生成摘要' : 'AI 摘要') }}
-              </button>
-              <button v-if="detail.content" class="btn-secondary" @click="showAiProcessModal = true">
-                AI 整理
-              </button>
-              <button v-if="detail.content && !isEditing" class="btn-secondary" @click="isEditing = true">
-                编辑
-              </button>
-            </div>
+      <div class="flex w-full flex-col gap-3">
+        <div class="flex items-start justify-between gap-4">
+          <h2 class="text-xl font-semibold leading-tight">{{ detail.link.title || '未命名' }}</h2>
+          <div class="flex shrink-0 gap-2">
+            <Button v-if="detail.link.status !== 'parsing'" @click="parseLink" :disabled="parsing">
+              {{ parsing ? '解析中...' : (detail.content ? '重新解析' : '解析内容') }}
+            </Button>
+            <Button v-if="detail.content" variant="outline" @click="analyzeContent" :disabled="analyzing">
+              {{ analyzing ? '摘要生成中...' : (detail.ai ? '重新生成摘要' : 'AI 摘要') }}
+            </Button>
+            <Button v-if="detail.content" variant="outline" @click="showAiProcessModal = true">
+              AI 整理
+            </Button>
+            <Button v-if="detail.content && !isEditing" variant="outline" @click="isEditing = true">
+              编辑
+            </Button>
           </div>
-          <div class="meta">
-            <span class="platform-badge">{{ detail.link.platform || 'web' }}</span>
-            <a :href="detail.link.url" target="_blank" class="original-link">查看原文 →</a>
-          </div>
-          <TagInput v-if="detail.content" :model-value="contentTags" :all-tags="tagsStore.tags"
-            @update:model-value="handleTagsUpdate" />
         </div>
 
-        <div class="ai-summary" v-if="detail.ai">
-          <p><span>AI 摘要：</span>{{ detail.ai.summary }}</p>
+        <div class="flex items-center gap-3">
+          <Badge variant="secondary">{{ detail.link.platform || 'web' }}</Badge>
+          <a :href="detail.link.url" target="_blank" class="text-sm text-primary hover:underline">查看原文 &rarr;</a>
         </div>
-      </StickyHeader>
 
-      <div v-if="autoAnalyzing" class="auto-analyzing-hint">
+        <TagInput v-if="detail.content" :model-value="contentTags" :all-tags="tagsStore.tags"
+          @update:model-value="handleTagsUpdate" />
+
+        <!-- AI summary card -->
+        <Card v-if="detail.ai" class="border-primary/10 bg-primary/5">
+          <CardContent class="p-4">
+            <p class="text-sm leading-relaxed"><span class="font-medium text-primary">AI 摘要：</span>{{ detail.ai.summary
+              }}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <!-- Auto analyzing hint -->
+      <div v-if="autoAnalyzing" class="mx-6 mt-4 rounded-lg bg-primary/5 px-4 py-3 text-center text-sm text-primary">
         正在生成 AI 摘要...
       </div>
 
-      <ContentEditor v-if="isEditing" :initial-title="detail.content?.title ?? null"
-        :initial-body="detail.content?.body_text ?? ''" :saving="savingContent" @save="handleSaveContent"
-        @cancel="isEditing = false" />
-      <template v-else>
-        <div v-if="detail.content" class="content-body">
-          <div v-if="detail.content.body_text" class="markdown-content" v-html="renderedMarkdown"></div>
-          <div v-else-if="detail.content.body_html" v-html="detail.content.body_html" class="html-content"></div>
-          <p v-else class="empty-state">无可显示内容</p>
-        </div>
-        <div v-else class="empty-state">
-          <p>内容尚未解析</p>
-        </div>
-      </template>
+      <!-- Content area -->
+      <div class="flex-1 p-6">
+        <ContentEditor v-if="isEditing" :initial-title="detail.content?.title ?? null"
+          :initial-body="detail.content?.body_text ?? ''" :saving="savingContent" @save="handleSaveContent"
+          @cancel="isEditing = false" />
+        <template v-else>
+          <div v-if="detail.content" class="prose prose-slate max-w-none leading-relaxed text-slate-700">
+            <div v-if="detail.content.body_text" class="markdown-content" v-html="renderedMarkdown"></div>
+            <div v-else-if="detail.content.body_html" v-html="detail.content.body_html"></div>
+            <p v-else class="text-center text-muted-foreground">无可显示内容</p>
+          </div>
+          <div v-else class="flex flex-1 items-center justify-center py-10 text-muted-foreground">
+            <p>内容尚未解析</p>
+          </div>
+        </template>
+      </div>
     </template>
 
-    <!-- AI 整理选项弹窗 -->
-    <div v-if="showAiProcessModal" class="modal-overlay" @click.self="closeAiProcessModal"
-      @keydown.escape="closeAiProcessModal">
-      <div class="modal-content" role="dialog" aria-modal="true">
-        <div class="modal-header">
-          <h3>选择 AI 处理方式</h3>
-          <button class="modal-close" @click="closeAiProcessModal" aria-label="关闭">×</button>
+    <!-- AI process options dialog -->
+    <Dialog v-model:open="showAiProcessModal">
+      <DialogContent class="sm:max-w-[360px]">
+        <DialogHeader>
+          <DialogTitle>选择 AI 处理方式</DialogTitle>
+        </DialogHeader>
+        <div class="flex flex-col gap-2">
+          <button
+            class="flex flex-col gap-1 rounded-lg border border-border bg-muted/50 p-3 text-left transition-colors hover:border-primary hover:bg-muted"
+            @click="handleAiProcess('organize')">
+            <strong class="text-sm text-foreground">AI 整理内容</strong>
+            <span class="text-xs text-muted-foreground">清理排版、去除冗余、补全结构</span>
+          </button>
+          <button
+            class="flex flex-col gap-1 rounded-lg border border-border bg-muted/50 p-3 text-left transition-colors hover:border-primary hover:bg-muted"
+            @click="handleAiProcess('expand')">
+            <strong class="text-sm text-foreground">AI 扩展内容</strong>
+            <span class="text-xs text-muted-foreground">基于当前内容搜索并扩展补充</span>
+          </button>
+          <button
+            class="flex flex-col gap-1 rounded-lg border border-border bg-muted/50 p-3 text-left transition-colors hover:border-primary hover:bg-muted"
+            @click="handleAiProcess('both')">
+            <strong class="text-sm text-foreground">整理并扩展</strong>
+            <span class="text-xs text-muted-foreground">先整理后扩展，完整处理</span>
+          </button>
         </div>
-        <button class="modal-option" @click="handleAiProcess('organize')" aria-label="AI 整理内容">
-          <strong>AI 整理内容</strong>
-          <span>清理排版、去除冗余、补全结构</span>
-        </button>
-        <button class="modal-option" @click="handleAiProcess('expand')" aria-label="AI 扩展内容">
-          <strong>AI 扩展内容</strong>
-          <span>基于当前内容搜索并扩展补充</span>
-        </button>
-        <button class="modal-option" @click="handleAiProcess('both')" aria-label="整理并扩展">
-          <strong>整理并扩展</strong>
-          <span>先整理后扩展，完整处理</span>
-        </button>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
 
-    <!-- 确认弹窗 -->
-    <div v-if="showConfirmModal" class="modal-overlay" @click.self="closeConfirmModal"
-      @keydown.escape="closeConfirmModal">
-      <div class="modal-content" role="dialog" aria-modal="true">
-        <div class="modal-header">
-          <h3>确认操作</h3>
-          <button class="modal-close" @click="closeConfirmModal" aria-label="关闭">×</button>
-        </div>
-        <p class="modal-message">此操作会覆盖原文，确认是否要继续？</p>
-        <div class="modal-actions">
-          <button class="btn-cancel" @click="closeConfirmModal">取消</button>
-          <button class="btn-confirm" @click="confirmAiProcess">继续</button>
-        </div>
-      </div>
-    </div>
+    <!-- Confirm dialog -->
+    <Dialog v-model:open="showConfirmModal">
+      <DialogContent class="sm:max-w-[360px]">
+        <DialogHeader>
+          <DialogTitle>确认操作</DialogTitle>
+        </DialogHeader>
+        <p class="text-sm leading-relaxed text-slate-600">此操作会覆盖原文，确认是否要继续？</p>
+        <DialogFooter>
+          <Button variant="secondary" @click="closeConfirmModal">取消</Button>
+          <Button @click="confirmAiProcess">继续</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
-    <!-- AI 处理中提示 -->
-    <div v-if="aiProcessing" class="ai-processing-hint">
+    <!-- AI processing hint -->
+    <div v-if="aiProcessing"
+      class="fixed left-1/2 top-5 z-[200] -translate-x-1/2 rounded-lg bg-primary px-6 py-2.5 text-sm text-primary-foreground shadow-lg">
       {{ aiProcessingText }}
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { marked } from 'marked';
 import { useApi } from '../composables/useApi';
@@ -123,6 +146,11 @@ import { useTagsStore } from '../stores/tags';
 import TagInput from '../components/TagInput.vue';
 import ContentEditor from '../components/ContentEditor.vue';
 import StickyHeader from '../components/StickyHeader.vue';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { LinkDetail, TagWithCount } from '../types/index';
 
 const props = defineProps<{ id: string }>();
@@ -161,28 +189,14 @@ async function confirmAiProcess() {
 
   try {
     await api.startAiProcess(detail.value.link.id, pendingAiMode.value);
-    toast.show('AI 处理已启动', 'success');
+    toast.success('AI 处理已启动');
     router.push({ name: 'links' });
   } catch (e: any) {
-    toast.show(e?.message || 'AI 处理启动失败', 'error');
+    toast.error(e?.message || 'AI 处理启动失败');
   } finally {
     pendingAiMode.value = '';
   }
 }
-
-function closeAiProcessModal() {
-  showAiProcessModal.value = false;
-}
-
-// Focus management for modal
-watch(showAiProcessModal, (isOpen) => {
-  if (isOpen) {
-    nextTick(() => {
-      const firstOption = document.querySelector('.modal-option') as HTMLElement;
-      firstOption?.focus();
-    });
-  }
-});
 
 onMounted(async () => {
   await fetchDetail();
@@ -193,14 +207,6 @@ async function fetchDetail() {
   loading.value = true;
   try {
     detail.value = await api.getLinkDetail(Number(props.id));
-    console.log('[ContentView] fetchDetail:', {
-      linkId: detail.value?.link.id,
-      status: detail.value?.link.status,
-      hasContent: !!detail.value?.content,
-      bodyTextLen: detail.value?.content?.body_text?.length ?? 0,
-      bodyHtmlLen: detail.value?.content?.body_html?.length ?? 0,
-      contentStatus: detail.value?.content?.content_status,
-    });
     if (detail.value?.content && detail.value?.ai) {
       contentTags.value = detail.value.ai.tags.map(name => {
         const existing = tagsStore.tags.find(t => t.name === name);
@@ -224,29 +230,28 @@ async function parseLink() {
   try {
     const result = await api.parseLink(Number(props.id));
     if (result.error) {
-      toast.show(result.error, 'error');
+      toast.error(result.error);
       await fetchDetail();
     } else {
-      toast.show('解析完成', 'success');
-      // 自动触发 AI 摘要
+      toast.success('解析完成');
       await fetchDetail();
       if (detail.value?.content) {
         autoAnalyzing.value = true;
         try {
           await api.analyzeContent(detail.value.content.id);
-          toast.show('AI 摘要完成', 'success');
+          toast.success('AI 摘要完成');
           await fetchDetail();
           await tagsStore.fetchTags();
         } catch (e) {
           console.error(e);
-          toast.show('AI 摘要失败', 'error');
+          toast.error('AI 摘要失败');
         } finally {
           autoAnalyzing.value = false;
         }
       }
     }
   } catch (e) {
-    toast.show('解析失败', 'error');
+    toast.error('解析失败');
   } finally {
     parsing.value = false;
   }
@@ -258,11 +263,11 @@ async function analyzeContent() {
   analyzing.value = true;
   try {
     await api.analyzeContent(detail.value.content.id);
-    toast.show('AI 摘要完成', 'success');
+    toast.success('AI 摘要完成');
     await fetchDetail();
     await tagsStore.fetchTags();
   } catch (e) {
-    toast.show('AI 摘要失败', 'error');
+    toast.error('AI 摘要失败');
   } finally {
     analyzing.value = false;
   }
@@ -283,11 +288,11 @@ async function handleSaveContent(title: string | null, bodyText: string) {
   try {
     const html = marked.parse(bodyText, { async: false });
     await api.updateContent(detail.value.content.id, title, bodyText, html);
-    toast.show('内容已保存', 'success');
+    toast.success('内容已保存');
     isEditing.value = false;
     await fetchDetail();
   } catch (e) {
-    toast.show('保存失败', 'error');
+    toast.error('保存失败');
   } finally {
     savingContent.value = false;
   }
@@ -298,390 +303,3 @@ const renderedMarkdown = computed(() => {
   return marked.parse(detail.value.content.body_text, { async: false });
 });
 </script>
-
-<style scoped>
-.content-view {
-  width: 100%;
-}
-
-.btn-back {
-  background: none;
-  border: none;
-  color: #6366f1;
-  cursor: pointer;
-  font-size: 14px;
-  margin-bottom: 16px;
-}
-
-.content-header h2 {
-  font-size: 22px;
-  margin-bottom: 8px;
-}
-
-.content-header .top-btn {
-  display: flex;
-  justify-content: space-between;
-  align-items: center
-}
-
-.meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.platform-badge {
-  font-size: 11px;
-  background: #f1f5f9;
-  padding: 2px 8px;
-  border-radius: 4px;
-  color: #64748b;
-}
-
-.original-link {
-  font-size: 13px;
-  color: #6366f1;
-  text-decoration: none;
-}
-
-.ai-summary {
-  background: #f0f0ff;
-  border-radius: 10px;
-  padding: 16px;
-  margin-top: 10px;
-  margin-bottom: 10px;
-}
-
-.ai-summary span {
-  font-size: 14px;
-  color: #6366f1;
-}
-
-.ai-summary p {
-  font-size: 14px;
-}
-
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.tag {
-  font-size: 12px;
-  background: #6366f1;
-  color: white;
-  padding: 2px 10px;
-  border-radius: 12px;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-  max-width: 370px;
-  justify-content: end;
-}
-
-.btn-primary {
-  padding: 8px 16px;
-  background: #6366f1;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-}
-
-.btn-secondary {
-  padding: 8px 16px;
-  background: white;
-  color: #6366f1;
-  border: 1px solid #6366f1;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.btn-secondary:disabled {
-  opacity: 0.5;
-}
-
-.content-body {
-  line-height: 1.8;
-  font-size: 15px;
-  color: #334155;
-}
-
-.markdown-content {
-  overflow-y: auto;
-}
-
-.markdown-content :deep(h1) {
-  font-size: 24px;
-  margin: 24px 0 12px;
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 8px;
-}
-
-.markdown-content :deep(h2) {
-  font-size: 20px;
-  margin: 20px 0 10px;
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 6px;
-}
-
-.markdown-content :deep(h3) {
-  font-size: 18px;
-  margin: 16px 0 8px;
-}
-
-.markdown-content :deep(h4) {
-  font-size: 16px;
-  margin: 14px 0 6px;
-}
-
-.markdown-content :deep(p) {
-  margin: 8px 0;
-}
-
-.markdown-content :deep(ul),
-.markdown-content :deep(ol) {
-  padding-left: 24px;
-  margin: 8px 0;
-}
-
-.markdown-content :deep(li) {
-  margin: 4px 0;
-}
-
-.markdown-content :deep(blockquote) {
-  border-left: 4px solid #6366f1;
-  padding: 4px 16px;
-  margin: 12px 0;
-  color: #64748b;
-  background: #f8fafc;
-}
-
-.markdown-content :deep(code) {
-  background: #f1f5f9;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 13px;
-}
-
-.markdown-content :deep(pre) {
-  background: #1e293b;
-  color: #e2e8f0;
-  padding: 16px;
-  border-radius: 8px;
-  overflow-x: auto;
-  margin: 12px 0;
-}
-
-.markdown-content :deep(pre code) {
-  background: none;
-  padding: 0;
-  color: inherit;
-}
-
-.markdown-content :deep(a) {
-  color: #6366f1;
-  text-decoration: none;
-}
-
-.markdown-content :deep(a:hover) {
-  text-decoration: underline;
-}
-
-.markdown-content :deep(img) {
-  max-width: 100%;
-  border-radius: 8px;
-  margin: 8px 0;
-}
-
-.markdown-content :deep(table) {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 12px 0;
-}
-
-.markdown-content :deep(th),
-.markdown-content :deep(td) {
-  border: 1px solid #e2e8f0;
-  padding: 8px 12px;
-  text-align: left;
-}
-
-.markdown-content :deep(th) {
-  background: #f8fafc;
-}
-
-.empty-state {
-  text-align: center;
-  color: #94a3b8;
-  padding: 40px;
-}
-
-.skeleton-bar {
-  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: 4px;
-}
-
-.auto-analyzing-hint {
-  text-align: center;
-  padding: 12px;
-  color: #6366f1;
-  font-size: 14px;
-  background: #f0f0ff;
-  border-radius: 8px;
-  margin-bottom: 16px;
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  width: 360px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.modal-content h3 {
-  font-size: 16px;
-  margin: 0;
-  color: #1e293b;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: #64748b;
-  cursor: pointer;
-  padding: 0;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  transition: color 0.15s;
-}
-
-.modal-close:hover {
-  color: #1e293b;
-}
-
-.modal-option {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 100%;
-  padding: 12px;
-  margin-bottom: 8px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 0.15s;
-}
-
-.modal-option:hover {
-  border-color: #6366f1;
-}
-
-.modal-option:last-child {
-  margin-bottom: 0;
-}
-
-.modal-option strong {
-  font-size: 14px;
-  color: #1e293b;
-}
-
-.modal-option span {
-  font-size: 12px;
-  color: #64748b;
-}
-
-.ai-processing-hint {
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #6366f1;
-  color: white;
-  padding: 10px 24px;
-  border-radius: 8px;
-  font-size: 14px;
-  z-index: 200;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-}
-
-.modal-message {
-  font-size: 14px;
-  color: #334155;
-  margin: 16px 0 24px;
-  line-height: 1.6;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-}
-
-.btn-cancel {
-  padding: 8px 20px;
-  background: #f1f5f9;
-  color: #64748b;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.btn-cancel:hover {
-  background: #e2e8f0;
-}
-
-.btn-confirm {
-  padding: 8px 20px;
-  background: #6366f1;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.btn-confirm:hover {
-  background: #4f46e5;
-}
-</style>

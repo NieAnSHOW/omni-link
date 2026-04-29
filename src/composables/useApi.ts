@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Link, LinkDetail, TagWithCount } from '../types/index';
+import type { Link, LinkDetail, TagWithCount, Note, NoteDetail } from '../types/index';
 
 export function useApi() {
   return {
@@ -79,3 +79,25 @@ export function useApi() {
       invoke<void>('start_ai_process', { linkId, mode }),
   };
 }
+
+export const notesApi = {
+  async createNote(title: string): Promise<Note> {
+    return invoke('create_note', { title });
+  },
+
+  async getNote(id: number): Promise<NoteDetail> {
+    return invoke('get_note', { id });
+  },
+
+  async listNotes(limit?: number, offset?: number): Promise<Note[]> {
+    return invoke('list_notes', { limit, offset });
+  },
+
+  async updateNote(id: number, title: string, content: string): Promise<void> {
+    return invoke('update_note', { id, title, content });
+  },
+
+  async deleteNote(id: number): Promise<void> {
+    return invoke('delete_note', { id });
+  },
+};

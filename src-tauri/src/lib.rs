@@ -6,11 +6,15 @@ mod error;
 mod logger;
 mod models;
 mod parser;
+mod persona;
 mod repositories;
+mod terminal;
 
+use commands::terminal_commands::PtyManagerState;
 use config::ConfigState;
 use db::DbState;
 use tauri::Manager;
+use terminal::PtyManager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -35,6 +39,10 @@ pub fn run() {
 
             app.manage(DbState(std::sync::Arc::new(std::sync::Mutex::new(conn))));
             app.manage(ConfigState(std::sync::Mutex::new(app_config)));
+            app.manage(PtyManagerState(std::sync::Mutex::new(PtyManager::new())));
+
+            persona::initialize_builtin_skills()?;
+            tracing::info!("Built-in persona skills initialized");
 
             tracing::info!("OmniLink application setup completed");
             Ok(())
@@ -57,6 +65,22 @@ pub fn run() {
             commands::tag_commands::create_tag,
             commands::tag_commands::delete_tag,
             commands::tag_commands::update_content_tags,
+            commands::note_commands::create_note,
+            commands::note_commands::get_note,
+            commands::note_commands::list_notes,
+            commands::note_commands::update_note,
+            commands::note_commands::delete_note,
+            commands::persona_commands::scan_local_personas,
+            commands::persona_commands::get_all_personas,
+            commands::persona_commands::get_persona_by_skill,
+            commands::persona_commands::save_persona,
+            commands::persona_commands::delete_persona,
+            commands::terminal_commands::start_persona_rewrite,
+            commands::terminal_commands::start_reading,
+            commands::terminal_commands::update_session_status,
+            commands::terminal_commands::close_terminal_session,
+            commands::terminal_commands::resize_terminal,
+            commands::terminal_commands::get_session_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

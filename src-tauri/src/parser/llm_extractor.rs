@@ -3,6 +3,7 @@ use crate::config::AiConfig;
 use crate::error::AppResult;
 
 pub struct LlmExtractResult {
+    #[allow(dead_code)]
     pub title: String,
     pub markdown: String,
 }

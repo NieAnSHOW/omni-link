@@ -5,19 +5,20 @@ use tracing_subscriber::filter::LevelFilter;
 
 use crate::error::AppResult;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum LogLevel {
     Error,
     Warn,
     Info,
+    #[default]
     Debug,
     Trace,
 }
 
 impl LogLevel {
     /// 转换为 tracing_subscriber 的 LevelFilter
-    pub fn to_level_filter(&self) -> LevelFilter {
+    pub fn to_level_filter(self) -> LevelFilter {
         match self {
             LogLevel::Error => LevelFilter::ERROR,
             LogLevel::Warn => LevelFilter::WARN,
@@ -28,23 +29,9 @@ impl LogLevel {
     }
 }
 
-impl Default for LogLevel {
-    fn default() -> Self {
-        LogLevel::Debug
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct LogConfig {
     pub level: LogLevel,
-}
-
-impl Default for LogConfig {
-    fn default() -> Self {
-        LogConfig {
-            level: LogLevel::default(),
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

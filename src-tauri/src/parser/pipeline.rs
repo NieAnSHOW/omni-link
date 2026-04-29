@@ -113,16 +113,18 @@ pub async fn parse_link(
         let conn = state.0.lock().unwrap();
         content_repo::create_content(
             &conn,
-            link_id,
-            title,
-            Some(&extract_result.body_html),
-            Some(&final_markdown),
-            &extract_result.images,
-            &meta_value,
-            Some(final_status),
+            content_repo::CreateContentParams {
+                link_id,
+                title,
+                body_html: Some(&extract_result.body_html),
+                body_text: Some(&final_markdown),
+                images: &extract_result.images,
+                metadata: &meta_value,
+                content_status: Some(final_status),
+            },
         )?;
 
-        if let Some(ref t) = title {
+        if let Some(t) = title {
             if !t.is_empty() {
                 link_repo::update_link_title(&conn, link_id, t)?;
             }

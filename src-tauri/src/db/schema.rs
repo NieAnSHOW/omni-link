@@ -62,10 +62,43 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
             imported_at TEXT DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            file_name TEXT NOT NULL UNIQUE,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now')),
+            file_size INTEGER DEFAULT 0,
+            word_count INTEGER DEFAULT 0
+        );
+
         CREATE INDEX IF NOT EXISTS idx_links_status ON links(status);
         CREATE INDEX IF NOT EXISTS idx_links_platform ON links(platform);
         CREATE INDEX IF NOT EXISTS idx_links_created ON links(created_at);
-        CREATE INDEX IF NOT EXISTS idx_contents_link ON contents(link_id);",
+        CREATE INDEX IF NOT EXISTS idx_contents_link ON contents(link_id);
+        CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON notes(updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS personas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            skill_name TEXT NOT NULL UNIQUE,
+            category TEXT NOT NULL,
+            description TEXT,
+            is_builtin INTEGER DEFAULT 0,
+            is_installed INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS terminal_sessions (
+            id TEXT PRIMARY KEY,
+            note_id INTEGER NOT NULL,
+            persona_skill TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'running',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+        );",
     )?;
 
     // Migrate existing DB
@@ -103,6 +136,12 @@ fn migrate(conn: &Connection) -> AppResult<()> {
 
     // Fix ai_results foreign key constraint
     fix_ai_results_foreign_key(conn)?;
+
+    // notes_storage_path migration
+    conn.execute(
+        "INSERT OR IGNORE INTO user_settings (key, value) VALUES ('notes_storage_path', '~/.omnilink/notes/')",
+        [],
+    )?;
 
     Ok(())
 }

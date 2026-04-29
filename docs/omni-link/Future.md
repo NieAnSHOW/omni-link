@@ -6,25 +6,11 @@
 
 基于系统已存在的 claude code、code x、opencode、gemini cli 等此类 cli 工具，对文档内容进行整理或是扩写
 
-### 人格系统
 
-通过“蒸馏”而来的人物 skills ，例如：技术向的内容交由完“huashu-perspective” skills 完成、旅游向交由 “XXXX”skills  完成
 
-##### 细化人格
+### 网络搜索
 
-通过链接解析下来的初始化文本作为内容母版，有大模型决定内容的类型与成程度
-
-技术类型：科普入门/实用技巧（花叔）、硬核科研（待定）
-
-旅游攻略类型：简单攻略（房琪 kiki）、硬核向(雷探长)
-
-电影剧集类型：毒舌电影解说
-
-#### 人格商店
-
-内置 “房琪 kiki”、“雷探长”、“花叔” 、“女娲” skills
-
-使用 “女娲” skills 自制人格
+在设置中可视化配置搜索引擎，配置的路径在 src-tauri/skills/unified-search/config.example.json
 
 
 
@@ -83,7 +69,25 @@
 
 
 
+### 【已完成】笔记
 
+#### 数组存储
+
+sqlite 只做元数据的存储
+
+笔记的内容直接存储为 markdown 的文本文件
+
+#### 布局
+
+分为左右
+
+左侧单列展示笔记列表
+
+右侧展示选中笔记详情
+
+#### 技术方向
+
+笔记详情markdown的渲染可直接使用 src/views/ContentView.vue 中的 markdown 编辑器，直接对 markdown 文本文件进行编辑保存
 
 ### 【已完成】启动页
 

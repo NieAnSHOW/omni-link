@@ -14,23 +14,27 @@ pub struct ContentRow {
     pub created_at: String,
 }
 
+pub struct CreateContentParams<'a> {
+    pub link_id: i64,
+    pub title: Option<&'a str>,
+    pub body_html: Option<&'a str>,
+    pub body_text: Option<&'a str>,
+    pub images: &'a [String],
+    pub metadata: &'a serde_json::Value,
+    pub content_status: Option<&'a str>,
+}
+
 pub fn create_content(
     conn: &Connection,
-    link_id: i64,
-    title: Option<&str>,
-    body_html: Option<&str>,
-    body_text: Option<&str>,
-    images: &[String],
-    metadata: &serde_json::Value,
-    content_status: Option<&str>,
+    params: CreateContentParams,
 ) -> AppResult<ContentRow> {
-    let images_json = serde_json::to_string(images)?;
-    let metadata_json = serde_json::to_string(metadata)?;
+    let images_json = serde_json::to_string(params.images)?;
+    let metadata_json = serde_json::to_string(params.metadata)?;
 
-    conn.execute("DELETE FROM contents WHERE link_id = ?", params![link_id])?;
+    conn.execute("DELETE FROM contents WHERE link_id = ?", rusqlite::params![params.link_id])?;
     conn.execute(
         "INSERT INTO contents (link_id, title, body_html, body_text, images, metadata, content_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        params![link_id, title, body_html, body_text, images_json, metadata_json, content_status],
+        rusqlite::params![params.link_id, params.title, params.body_html, params.body_text, images_json, metadata_json, params.content_status],
     )?;
 
     let id = conn.last_insert_rowid();
@@ -39,13 +43,13 @@ pub fn create_content(
 
 pub fn get_content_by_link_id(conn: &Connection, link_id: i64) -> AppResult<Option<ContentRow>> {
     let mut stmt = conn.prepare("SELECT * FROM contents WHERE link_id = ?")?;
-    let content = stmt.query_row(params![link_id], |row| row_to_content(row)).ok();
+    let content = stmt.query_row(rusqlite::params![link_id], row_to_content).ok();
     Ok(content)
 }
 
 pub fn get_content_by_id(conn: &Connection, id: i64) -> AppResult<Option<ContentRow>> {
     let mut stmt = conn.prepare("SELECT * FROM contents WHERE id = ?")?;
-    let content = stmt.query_row(params![id], |row| row_to_content(row)).ok();
+    let content = stmt.query_row(rusqlite::params![id], row_to_content).ok();
     Ok(content)
 }
 

@@ -143,3 +143,5 @@ src-tauri/target/
 .superpowers
 config.json
 .worktrees/
+pencil/
+src-tauri/target
