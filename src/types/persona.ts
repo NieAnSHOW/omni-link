@@ -38,3 +38,23 @@ export interface StartRewriteParams {
   personaSkill: string;
   mode: 'smart' | 'manual';
 }
+
+// === Claude Code 类型 ===
+
+export interface ClaudeConfig {
+  provider: string;
+  api_key: string;
+  base_url: string;
+  model: string;
+}
+
+export interface ClaudeCliStatus {
+  installed: boolean;
+  version: string | null;
+  path?: string;
+}
+
+export interface ClaudeSkillInfo {
+  name: string;
+  builtin: boolean;
+}
