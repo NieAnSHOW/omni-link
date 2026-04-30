@@ -11,6 +11,10 @@ mod persona;
 mod repositories;
 mod terminal;
 
+use claude::cli_downloader::CliDownloader;
+use claude::manager::ClaudeManager;
+use claude::skills::SkillsManager;
+use commands::claude_commands::{ClaudeManagerState, CliDownloaderState, SkillsManagerState};
 use commands::terminal_commands::PtyManagerState;
 use config::ConfigState;
 use db::DbState;
@@ -45,6 +49,16 @@ pub fn run() {
             persona::initialize_builtin_skills()?;
             tracing::info!("Built-in persona skills initialized");
 
+            // 初始化 Claude Code 模块
+            let skills_manager = SkillsManager::new();
+            skills_manager.deploy_builtin_skills()?;
+            let cli_downloader = CliDownloader::new();
+            let claude_manager = ClaudeManager::new(cli_downloader, skills_manager);
+            app.manage(ClaudeManagerState(std::sync::Mutex::new(claude_manager)));
+            app.manage(CliDownloaderState(CliDownloader::new()));
+            app.manage(SkillsManagerState(std::sync::Mutex::new(SkillsManager::new())));
+            tracing::info!("Claude Code modules initialized");
+
             tracing::info!("OmniLink application setup completed");
             Ok(())
         })
@@ -69,6 +83,18 @@ pub fn run() {
             commands::terminal_commands::close_terminal_session,
             commands::terminal_commands::resize_terminal,
             commands::terminal_commands::get_session_info,
+            commands::claude_commands::check_claude_installed,
+            commands::claude_commands::install_claude_cli,
+            commands::claude_commands::get_claude_cli_path,
+            commands::claude_commands::start_claude_session,
+            commands::claude_commands::start_claude_output,
+            commands::claude_commands::write_claude_input,
+            commands::claude_commands::resize_claude_terminal,
+            commands::claude_commands::close_claude_session,
+            commands::claude_commands::get_claude_config,
+            commands::claude_commands::update_claude_config,
+            commands::claude_commands::list_claude_skills,
+            commands::claude_commands::deploy_claude_skills,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
