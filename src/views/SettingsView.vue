@@ -57,6 +57,9 @@
       </CardContent>
     </Card>
 
+    <!-- Claude Code 配置 -->
+    <ClaudeSettings />
+
     <!-- 数据信息 -->
     <Card>
       <CardHeader>
@@ -73,6 +76,7 @@ import { useApi } from '../composables/useApi';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import ClaudeSettings from '@/components/settings/ClaudeSettings.vue';
 
 const api = useApi();
 const saving = ref(false);

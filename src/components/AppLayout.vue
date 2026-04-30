@@ -47,22 +47,31 @@
       </div>
     </aside>
 
-    <!-- Main -->
-    <main class="flex flex-1 flex-col overflow-hidden">
-      <div class="flex items-center gap-3 border-b border-border px-4" style="min-height: 44px;">
-        <Button variant="ghost" size="icon" @click="sidebarOpen = !sidebarOpen">≡</Button>
-        <span class="flex-1 text-sm font-medium">{{ currentTitle }}</span>
-        <div class="flex items-center gap-2">
-          <slot name="topbar-actions" />
-          <Button variant="ghost" size="icon" @click="toggleTheme">
-            {{ theme === 'light' ? '☀️' : '🌙' }}
-          </Button>
+    <!-- Right area: main content + bottom panel -->
+    <div class="flex flex-1 flex-col overflow-hidden">
+      <!-- Main -->
+      <main class="flex flex-1 flex-col overflow-hidden">
+        <div class="flex items-center gap-3 border-b border-border px-4" style="min-height: 44px;">
+          <Button variant="ghost" size="icon" @click="sidebarOpen = !sidebarOpen">≡</Button>
+          <span class="flex-1 text-sm font-medium">{{ currentTitle }}</span>
+          <div class="flex items-center gap-2">
+            <slot name="topbar-actions" />
+            <Button variant="ghost" size="icon" @click="claudePanelOpen = !claudePanelOpen" title="Claude Code">
+              ⌨
+            </Button>
+            <Button variant="ghost" size="icon" @click="toggleTheme">
+              {{ theme === 'light' ? '☀️' : '🌙' }}
+            </Button>
+          </div>
         </div>
-      </div>
-      <div class="flex-1 overflow-hidden">
-        <slot />
-      </div>
-    </main>
+        <div class="flex-1 overflow-hidden">
+          <slot />
+        </div>
+      </main>
+
+      <!-- BottomPanel: Claude Code 交互终端 -->
+      <BottomPanel v-model="claudePanelOpen" />
+    </div>
 
     <CreateNoteDialog
       v-if="showCreateFromLink"
@@ -80,6 +89,7 @@ import { useTheme } from '../composables/useTheme';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import CreateNoteDialog from './CreateNoteDialog.vue';
+import BottomPanel from './layout/BottomPanel.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -90,6 +100,7 @@ const sidebarOpen = ref(true);
 const searchQuery = ref('');
 const showNewMenu = ref(false);
 const showCreateFromLink = ref(false);
+const claudePanelOpen = ref(false);
 
 const currentNoteId = computed(() => {
   const id = route.params.id;
