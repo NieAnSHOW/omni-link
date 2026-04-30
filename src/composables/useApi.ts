@@ -1,36 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Link, LinkDetail, TagWithCount, Note, NoteDetail } from '../types/index';
+import type { Note, NoteDetail } from '../types/index';
 
 export function useApi() {
   return {
-    getLinks: (params?: { limit?: number; offset?: number; status?: string }) =>
-      invoke<{ links: Link[]; total: number }>('get_links', {
-        limit: params?.limit ?? null,
-        offset: params?.offset ?? null,
-        status: params?.status ?? null,
-      }),
-
-    addLink: (url: string) =>
-      invoke<Link[]>('create_link', { url, urls: null, source: null }),
-
-    addLinks: (urls: string[]) =>
-      invoke<Link[]>('create_link', { url: null, urls, source: null }),
-
-    getLink: (id: number) =>
-      invoke<Link>('get_link', { id }),
-
-    deleteLink: (id: number) =>
-      invoke<boolean>('delete_link', { id }),
-
-    parseLink: (id: number) =>
-      invoke<{ link_id: number; platform: string; content: unknown; error: string | null }>('parse_link_cmd', { id }),
-
-    getLinkDetail: (id: number) =>
-      invoke<LinkDetail>('get_link_detail', { id }),
-
-    analyzeContent: (contentId: number) =>
-      invoke<{ summary: string; tags: string[] }>('analyze_content_cmd', { contentId }),
-
     getSettings: () =>
       invoke<Record<string, string>>('get_settings'),
 
@@ -53,30 +25,6 @@ export function useApi() {
         ollamaBaseUrl: params.ollamaBaseUrl ?? null,
         ollamaModel: params.ollamaModel ?? null,
       }),
-
-    // Tags
-    getTags: () =>
-      invoke<TagWithCount[]>('get_tags'),
-
-    createTag: (name: string, color?: string) =>
-      invoke<TagWithCount>('create_tag', { input: { name, color: color ?? null } }),
-
-    deleteTag: (id: number) =>
-      invoke<boolean>('delete_tag', { id }),
-
-    updateContentTags: (contentId: number, tagIds: number[]) =>
-      invoke<void>('update_content_tags', { contentId, tagIds }),
-
-    updateContent: (id: number, title: string | null, bodyText: string, bodyHtml: string) =>
-      invoke<boolean>('update_content_cmd', {
-        input: { id, title, body_text: bodyText, body_html: bodyHtml },
-      }),
-
-    aiProcessContent: (contentId: number, mode: string) =>
-      invoke<{ success: boolean }>('ai_process_content_cmd', { contentId, mode }),
-
-    startAiProcess: (linkId: number, mode: string) =>
-      invoke<void>('start_ai_process', { linkId, mode }),
   };
 }
 
@@ -99,5 +47,9 @@ export const notesApi = {
 
   async deleteNote(id: number): Promise<void> {
     return invoke('delete_note', { id });
+  },
+
+  async createNoteFromLink(url: string): Promise<NoteDetail> {
+    return invoke('create_note_from_link', { url });
   },
 };
