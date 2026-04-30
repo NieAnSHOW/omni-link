@@ -22,11 +22,9 @@
     </div>
 
     <div class="flex-1 overflow-hidden">
-      <MdEditor
+      <VditorEditor
         v-model="localContent"
-        :language="'zh-CN'"
-        :style="{ height: '100%' }"
-        :toolbars="toolbars"
+        :theme="theme"
       />
     </div>
   </div>
@@ -34,8 +32,10 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { MdEditor, type ToolbarNames } from 'md-editor-v3'
-import 'md-editor-v3/lib/style.css'
+import VditorEditor from './VditorEditor.vue'
+import { useTheme } from '@/composables/useTheme'
+
+const { theme } = useTheme()
 
 interface Props {
   title?: string
@@ -54,29 +54,6 @@ const emit = defineEmits<{
 
 const localTitle = ref(props.title)
 const localContent = ref(props.content)
-
-const toolbars: Array<ToolbarNames | number> = [
-  'bold',
-  'italic',
-  'strikeThrough',
-  'title',
-  -1,
-  'quote',
-  'unorderedList',
-  'orderedList',
-  'task',
-  -1,
-  'codeRow',
-  'code',
-  'link',
-  'image',
-  'table',
-  -1,
-  'revoke',
-  'next',
-  'preview',
-  'fullscreen',
-]
 
 watch(
   () => props.title,

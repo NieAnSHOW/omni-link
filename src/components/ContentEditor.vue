@@ -13,17 +13,18 @@
         <Button variant="outline" @click="emit('cancel')">取消</Button>
       </div>
     </div>
-    <MdEditor v-model="editBody" :language="'zh-CN'" :style="{ height: '60vh' }" />
+    <VditorEditor v-model="editBody" :theme="theme" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
 
-import { MdEditor } from 'md-editor-v3'
-import 'md-editor-v3/lib/style.css'
-
+import VditorEditor from './notes/VditorEditor.vue'
+import { useTheme } from '@/composables/useTheme'
 import { Button } from '@/components/ui/button'
+
+const { theme } = useTheme()
 
 const props = defineProps<{
   initialTitle: string | null
