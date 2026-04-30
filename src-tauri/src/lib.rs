@@ -88,6 +88,7 @@ pub fn run() {
             commands::claude_commands::install_claude_cli,
             commands::claude_commands::get_claude_cli_path,
             commands::claude_commands::start_claude_session,
+            commands::claude_commands::start_claude_print_session,
             commands::claude_commands::start_claude_output,
             commands::claude_commands::write_claude_input,
             commands::claude_commands::resize_claude_terminal,

@@ -112,6 +112,11 @@ provide('claudeTerminal', {
     nextTick(() => bottomPanelRef.value?.open());
   },
   sendPrompt: (text: string) => bottomPanelRef.value?.sendPrompt(text),
+  startPrintSession: async (prompt: string) => {
+    claudePanelOpen.value = true;
+    await nextTick();
+    await bottomPanelRef.value?.startPrintSession(prompt);
+  },
   isReady: () => !!bottomPanelRef.value?.sessionId,
 });
 

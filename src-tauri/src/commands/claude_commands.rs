@@ -57,6 +57,25 @@ pub async fn start_claude_session(
     Ok(session_id)
 }
 
+/// 以 print mode 启动 Claude CLI（非交互式，执行完自动退出）
+/// 自动添加 --dangerously-skip-permissions 跳过权限确认
+#[tauri::command]
+pub async fn start_claude_print_session(
+    prompt: String,
+    app_handle: AppHandle,
+    manager: State<'_, ClaudeManagerState>,
+) -> AppResult<String> {
+    let session_id = uuid::Uuid::new_v4().to_string();
+    let extra_args = vec![
+        "--dangerously-skip-permissions".to_string(),
+        "-p".to_string(),
+        prompt,
+    ];
+    let mgr = manager.0.lock().unwrap();
+    mgr.create_session_with_args(app_handle, session_id.clone(), extra_args)?;
+    Ok(session_id)
+}
+
 #[tauri::command]
 pub async fn start_claude_output(
     session_id: String,

@@ -18,6 +18,10 @@ export function useClaude() {
     return invoke<string>('start_claude_session')
   }
 
+  const startPrintSession = async (prompt: string): Promise<string> => {
+    return invoke<string>('start_claude_print_session', { prompt })
+  }
+
   const startOutput = async (sessionId: string): Promise<void> => {
     return invoke('start_claude_output', { sessionId })
   }
@@ -65,6 +69,7 @@ export function useClaude() {
     installCli,
     getCliPath,
     startSession,
+    startPrintSession,
     startOutput,
     writeInput,
     resizeTerminal,

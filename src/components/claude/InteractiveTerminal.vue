@@ -10,6 +10,7 @@ const {
   checkInstalled,
   installCli,
   startSession,
+  startPrintSession: cliStartPrintSession,
   startOutput,
   writeInput,
   resizeTerminal,
@@ -169,11 +170,51 @@ function cleanup() {
 }
 
 async function sendPrompt(text: string) {
+  let waited = 0
+  while (!sessionId.value && waited < 30000) {
+    await new Promise(r => setTimeout(r, 100))
+    waited += 100
+  }
   if (!sessionId.value) return
   await writeInput(sessionId.value, text + '\r')
 }
 
-defineExpose({ sessionId, sendPrompt })
+async function startPrintSession(prompt: string) {
+  error.value = null
+  const cliStatus = await checkInstalled()
+  if (!cliStatus.installed) {
+    status.value = 'installing'
+    terminal?.write('\x1b[36m正在下载 Claude CLI...\x1b[0m\r\n')
+    try {
+      await installCli()
+      terminal?.write('\x1b[32m下载完成！\x1b[0m\r\n')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      error.value = msg
+      terminal?.write(`\x1b[31m下载失败: ${msg}\x1b[0m\r\n`)
+      status.value = 'idle'
+      return
+    }
+  }
+
+  status.value = 'running'
+  try {
+    terminal?.clear()
+    terminal?.write('\x1b[36m正在执行任务（print mode, 跳过权限确认）...\x1b[0m\r\n\r\n')
+    const sid = await cliStartPrintSession(prompt)
+    sessionId.value = sid
+    await setupOutputListener(sid)
+    await startOutput(sid)
+    terminal?.focus()
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    error.value = msg
+    terminal?.write(`\x1b[31m启动失败: ${msg}\x1b[0m\r\n`)
+    status.value = 'idle'
+  }
+}
+
+defineExpose({ sessionId, sendPrompt, startPrintSession })
 
 onMounted(() => {
   initTerminal()

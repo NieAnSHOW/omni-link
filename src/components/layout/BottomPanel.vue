@@ -61,12 +61,26 @@ function open() {
 }
 
 async function sendPrompt(text: string) {
+  let waited = 0
+  while (!terminalRef.value && waited < 10000) {
+    await new Promise(r => setTimeout(r, 100))
+    waited += 100
+  }
   await terminalRef.value?.sendPrompt(text)
+}
+
+async function startPrintSession(prompt: string) {
+  let waited = 0
+  while (!terminalRef.value && waited < 10000) {
+    await new Promise(r => setTimeout(r, 100))
+    waited += 100
+  }
+  await terminalRef.value?.startPrintSession(prompt)
 }
 
 const sessionId = computed(() => terminalRef.value?.sessionId ?? null)
 
-defineExpose({ open, sendPrompt, sessionId })
+defineExpose({ open, sendPrompt, startPrintSession, sessionId })
 </script>
 
 <template>
