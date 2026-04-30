@@ -1,4 +1,5 @@
 mod ai;
+mod claude;
 mod commands;
 mod config;
 mod db;

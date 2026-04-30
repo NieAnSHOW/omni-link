@@ -14,10 +14,10 @@ pub fn initialize_builtin_skills() -> AppResult<()> {
     fs::create_dir_all(&target_dir)?;
 
     let builtin_skills = [
-        ("fangqikiki-perspective.md", include_str!("../../skills/fangqikiki-perspective.md")),
-        ("leitanzhang-perspective.md", include_str!("../../skills/leitanzhang-perspective.md")),
-        ("huashu-perspective.md", include_str!("../../skills/huashu-perspective.md")),
-        ("nuwa-skill.md", include_str!("../../skills/nuwa-skill.md")),
+        ("fangqikiki-perspective.md", include_str!("../../skills/fangqikiki-perspective/SKILL.md")),
+        ("leitanzhang-perspective.md", include_str!("../../skills/leitanzhang-perspective/SKILL.md")),
+        ("huashu-perspective.md", include_str!("../../skills/huashu-perspective/SKILL.md")),
+        ("nuwa-skill.md", include_str!("../../skills/nuwa-skill/SKILL.md")),
     ];
 
     for (filename, content) in builtin_skills {
