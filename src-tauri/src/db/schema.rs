@@ -55,6 +55,14 @@ fn migrate(conn: &Connection) -> AppResult<()> {
         [],
     )?;
 
+    // Add source_url column to existing notes table if missing
+    let has_source_url: bool = conn
+        .prepare("SELECT source_url FROM notes LIMIT 0")
+        .is_ok();
+    if !has_source_url {
+        conn.execute_batch("ALTER TABLE notes ADD COLUMN source_url TEXT;")?;
+    }
+
     migrate_links_to_notes(conn)?;
     drop_old_tables(conn)?;
 
