@@ -217,9 +217,14 @@ impl ClaudeManager {
         }
     }
 
-    /// 获取 downloader 引用
-    pub fn downloader(&self) -> &CliDownloader {
-        &self.downloader
+    /// 获取 downloader Arc 克隆（用于共享给 Tauri state）
+    pub fn downloader_arc(&self) -> Arc<CliDownloader> {
+        self.downloader.clone()
+    }
+
+    /// 获取 skills Arc 克隆（用于共享给 Tauri state）
+    pub fn skills_arc(&self) -> Arc<SkillsManager> {
+        self.skills.clone()
     }
 
     /// 将 ClaudeConfig 注入为 CommandBuilder 环境变量

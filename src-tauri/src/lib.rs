@@ -54,9 +54,10 @@ pub fn run() {
             skills_manager.deploy_builtin_skills()?;
             let cli_downloader = CliDownloader::new();
             let claude_manager = ClaudeManager::new(cli_downloader, skills_manager);
+            // 从 ClaudeManager 获取共享 Arc，避免重复实例化
+            app.manage(CliDownloaderState(claude_manager.downloader_arc()));
+            app.manage(SkillsManagerState(claude_manager.skills_arc()));
             app.manage(ClaudeManagerState(std::sync::Mutex::new(claude_manager)));
-            app.manage(CliDownloaderState(CliDownloader::new()));
-            app.manage(SkillsManagerState(std::sync::Mutex::new(SkillsManager::new())));
             tracing::info!("Claude Code modules initialized");
 
             tracing::info!("OmniLink application setup completed");

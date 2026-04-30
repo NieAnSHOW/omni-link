@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use serde::{Deserialize, Serialize};
+use tauri::Emitter;
 
 use crate::error::AppResult;
 
@@ -156,7 +157,10 @@ impl CliDownloader {
     }
 
     /// 下载并安装 Claude CLI
-    pub async fn install(&self) -> AppResult<ClaudeInstallStatus> {
+    pub async fn install(
+        &self,
+        app_handle: Option<tauri::AppHandle>,
+    ) -> AppResult<ClaudeInstallStatus> {
         let _lock_guard = self.acquire_lock()?;
 
         // 已安装则直接返回
@@ -170,18 +174,69 @@ impl CliDownloader {
         std::fs::create_dir_all(&self.base_dir)?;
 
         // 找到可用镜像源并下载
-        let (mirror_name, download_url) = self.find_available_mirror().await?;
+        self.emit_progress(
+            &app_handle,
+            DownloadProgress {
+                phase: "testing".to_string(),
+                message: "正在检测可用镜像源...".to_string(),
+                progress: 0.0,
+                mirror: None,
+            },
+        );
+
+        let (mirror_name, download_url) = match self.find_available_mirror().await {
+            Ok(result) => result,
+            Err(e) => {
+                self.emit_progress(
+                    &app_handle,
+                    DownloadProgress {
+                        phase: "error".to_string(),
+                        message: format!("所有镜像源均不可用: {}", e),
+                        progress: 0.0,
+                        mirror: None,
+                    },
+                );
+                return Err(e);
+            }
+        };
         tracing::info!("Downloading Claude CLI from mirror: {}", mirror_name);
+
+        self.emit_progress(
+            &app_handle,
+            DownloadProgress {
+                phase: "downloading".to_string(),
+                message: format!("正在从 {} 下载...", mirror_name),
+                progress: 0.3,
+                mirror: Some(mirror_name.clone()),
+            },
+        );
 
         let response = self.client.get(&download_url).send().await?;
         if !response.status().is_success() {
-            return Err(crate::error::AppError::Internal(format!(
-                "Download failed: HTTP {}",
-                response.status()
-            )));
+            let msg = format!("Download failed: HTTP {}", response.status());
+            self.emit_progress(
+                &app_handle,
+                DownloadProgress {
+                    phase: "error".to_string(),
+                    message: msg.clone(),
+                    progress: 0.0,
+                    mirror: Some(mirror_name),
+                },
+            );
+            return Err(crate::error::AppError::Internal(msg));
         }
 
         let bytes = response.bytes().await?;
+
+        self.emit_progress(
+            &app_handle,
+            DownloadProgress {
+                phase: "extracting".to_string(),
+                message: "正在写入文件...".to_string(),
+                progress: 0.8,
+                mirror: Some(mirror_name.clone()),
+            },
+        );
 
         // 写入临时文件，然后移动到 current/claude
         let current_dir = self.base_dir.join("current");
@@ -203,11 +258,40 @@ impl CliDownloader {
         // 验证安装
         let status = self.check_installed();
         if status.installed {
+            self.emit_progress(
+                &app_handle,
+                DownloadProgress {
+                    phase: "done".to_string(),
+                    message: "安装完成".to_string(),
+                    progress: 1.0,
+                    mirror: Some(mirror_name),
+                },
+            );
             Ok(status)
         } else {
+            self.emit_progress(
+                &app_handle,
+                DownloadProgress {
+                    phase: "error".to_string(),
+                    message: "Claude CLI 安装后验证失败".to_string(),
+                    progress: 0.0,
+                    mirror: Some(mirror_name),
+                },
+            );
             Err(crate::error::AppError::Internal(
                 "Claude CLI 安装后验证失败".to_string(),
             ))
+        }
+    }
+
+    /// 发送下载进度事件（如果 app_handle 存在）
+    fn emit_progress(
+        &self,
+        app_handle: &Option<tauri::AppHandle>,
+        progress: DownloadProgress,
+    ) {
+        if let Some(handle) = app_handle {
+            let _ = handle.emit("cli-download-progress", &progress);
         }
     }
 

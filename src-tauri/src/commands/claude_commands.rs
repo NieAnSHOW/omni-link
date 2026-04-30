@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, State};
 
 use crate::claude::cli_downloader::CliDownloader;
@@ -8,8 +8,8 @@ use crate::config::{self, ClaudeConfig, ConfigState};
 use crate::error::AppResult;
 
 pub struct ClaudeManagerState(pub Mutex<ClaudeManager>);
-pub struct CliDownloaderState(pub CliDownloader);
-pub struct SkillsManagerState(pub Mutex<SkillsManager>);
+pub struct CliDownloaderState(pub Arc<CliDownloader>);
+pub struct SkillsManagerState(pub Arc<SkillsManager>);
 
 #[tauri::command]
 pub async fn check_claude_installed(
@@ -24,9 +24,10 @@ pub async fn check_claude_installed(
 
 #[tauri::command]
 pub async fn install_claude_cli(
+    app_handle: AppHandle,
     downloader: State<'_, CliDownloaderState>,
 ) -> AppResult<serde_json::Value> {
-    let status = downloader.0.install().await?;
+    let status = downloader.0.install(Some(app_handle)).await?;
     Ok(serde_json::json!({
         "installed": status.installed,
         "version": status.version,
@@ -131,13 +132,11 @@ pub async fn update_claude_config(
 pub async fn list_claude_skills(
     skills: State<'_, SkillsManagerState>,
 ) -> AppResult<serde_json::Value> {
-    let mgr = skills.0.lock().unwrap();
-    let list = mgr.list_skills();
+    let list = skills.0.list_skills();
     Ok(serde_json::json!(list))
 }
 
 #[tauri::command]
 pub async fn deploy_claude_skills(skills: State<'_, SkillsManagerState>) -> AppResult<()> {
-    let mgr = skills.0.lock().unwrap();
-    mgr.deploy_builtin_skills()
+    skills.0.deploy_builtin_skills()
 }
