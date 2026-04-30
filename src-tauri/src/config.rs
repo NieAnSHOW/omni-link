@@ -39,6 +39,8 @@ pub struct AppConfig {
     pub ai: AiConfig,
     #[serde(default)]
     pub log: LogConfig,
+    #[serde(default)]
+    pub claude_code: ClaudeConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -62,6 +64,41 @@ pub struct OllamaConfig {
     pub model: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ClaudeConfig {
+    #[serde(default = "default_claude_provider")]
+    pub provider: String,
+    #[serde(default)]
+    pub api_key: String,
+    #[serde(default = "default_claude_base_url")]
+    pub base_url: String,
+    #[serde(default = "default_claude_model")]
+    pub model: String,
+}
+
+fn default_claude_provider() -> String {
+    "anthropic".into()
+}
+
+fn default_claude_base_url() -> String {
+    "https://api.anthropic.com".into()
+}
+
+fn default_claude_model() -> String {
+    "claude-sonnet-4-20250514".into()
+}
+
+impl Default for ClaudeConfig {
+    fn default() -> Self {
+        ClaudeConfig {
+            provider: default_claude_provider(),
+            api_key: String::new(),
+            base_url: default_claude_base_url(),
+            model: default_claude_model(),
+        }
+    }
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         AppConfig {
@@ -78,6 +115,7 @@ impl Default for AppConfig {
                 },
             },
             log: LogConfig::default(),
+            claude_code: ClaudeConfig::default(),
         }
     }
 }
@@ -156,6 +194,7 @@ pub fn migrate_ai_config_from_db(conn: &rusqlite::Connection) -> AppResult<()> {
                     },
                 },
                 log: LogConfig::default(),
+                claude_code: ClaudeConfig::default(),
             };
             save_config(&new_config)?;
         }
