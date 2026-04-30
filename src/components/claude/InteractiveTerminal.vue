@@ -63,13 +63,7 @@ function handleResize() {
   }
 }
 
-async function setupEventListeners() {
-  unlistenOutput = await listen<string>('claude-pty-output', (event) => {
-    if (terminal && event.payload) {
-      terminal.write(event.payload)
-    }
-  })
-
+async function setupStatusListener() {
   unlistenStatus = await listen<{ sessionId: string; status: string }>(
     'claude-session-status',
     (event) => {
@@ -79,6 +73,16 @@ async function setupEventListeners() {
       }
     },
   )
+}
+
+async function setupOutputListener(sid: string) {
+  // Clean up previous output listener if any (e.g. on restart)
+  unlistenOutput?.()
+  unlistenOutput = await listen<string>(`claude-pty-output-${sid}`, (event) => {
+    if (terminal && event.payload) {
+      terminal.write(event.payload)
+    }
+  })
 }
 
 async function startClaude() {
@@ -104,6 +108,7 @@ async function startClaude() {
   try {
     const sid = await startSession()
     sessionId.value = sid
+    await setupOutputListener(sid)
     await startOutput(sid)
     terminal?.write('\x1b[32mClaude Code 已启动\x1b[0m\r\n')
   } catch (e: unknown) {
@@ -141,7 +146,7 @@ function cleanup() {
 
 onMounted(() => {
   initTerminal()
-  setupEventListeners()
+  setupStatusListener()
   window.addEventListener('resize', handleResize)
   startClaude()
 })

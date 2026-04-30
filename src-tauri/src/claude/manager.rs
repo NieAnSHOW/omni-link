@@ -139,7 +139,7 @@ impl ClaudeManager {
                     }
                     Ok(n) => {
                         let output = String::from_utf8_lossy(&buf[..n]).to_string();
-                        let _ = app_handle.emit("claude-pty-output", output);
+                        let _ = app_handle.emit(&format!("claude-pty-output-{}", sid), output);
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
                     Err(e) => {

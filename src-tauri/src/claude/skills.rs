@@ -26,6 +26,18 @@ const BUILTIN_SKILLS: &[BuiltinSkill] = &[
         name: "nuwa-skill",
         content: include_str!("../../skills/nuwa-skill/SKILL.md"),
     },
+    BuiltinSkill {
+        name: "luo-yonghao-perspective",
+        content: include_str!("../../skills/luo-yonghao-perspective/SKILL.md"),
+    },
+    BuiltinSkill {
+        name: "zhangxiaolong-perspective",
+        content: include_str!("../../skills/zhangxiaolong-perspective/SKILL.md"),
+    },
+    BuiltinSkill {
+        name: "unified-search",
+        content: include_str!("../../skills/unified-search/SKILL.md"),
+    },
 ];
 
 /// Skills Manager — 管理内置和用户自定义 Skills
