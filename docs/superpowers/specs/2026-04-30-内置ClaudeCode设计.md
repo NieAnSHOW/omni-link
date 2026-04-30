@@ -153,11 +153,13 @@ Claude CLI 启动时通过 `--add-dir` 参数将 skills 目录注入上下文：
 claude --add-dir ~/.omnilink/skills/
 ```
 
+> **实现验证点**：需确认 Claude CLI 的 `--add-dir` 是否支持指向自定义 skills 目录。若不支持，回退方案为将 skills 写入 `~/.claude/plugins/cache/omnilink-builtin/skills/`（与现有 `builtin.rs` 模式一致），CLI 启动时自动发现。
+
 ### Skills 部署流程
 
 1. 应用首次启动或 skills 文件更新时，将 `src-tauri/skills/` 下所有 `.md` 文件和目录复制到 `~/.omnilink/skills/`
 2. 使用 `include_str!` 将编译时的 skills 内容打包进二进制（与现有 `builtin.rs` 模式一致）
-3. `ClaudeManager` 启动会话时自动附加 `--add-dir ~/.omnilink/skills/`
+3. `ClaudeManager` 启动会话时自动附加 `--add-dir ~/.omnilink/skills/`（或使用回退方案写入 plugins cache）
 
 ### 与现有 persona 系统的关系
 
