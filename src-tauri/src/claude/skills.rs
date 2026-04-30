@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::error::AppResult;
@@ -91,6 +90,31 @@ impl SkillsManager {
         }
 
         Ok(None)
+    }
+
+    /// 获取 Skills 部署目录（用于 --add-dir 参数）
+    pub fn skills_deploy_dir(&self) -> PathBuf {
+        self.user_skills_dir.clone()
+    }
+
+    /// 将内置 Skills 部署到用户目录（首次启动或文件更新时调用）
+    pub fn deploy_builtin_skills(&self) -> AppResult<()> {
+        let target_dir = &self.user_skills_dir;
+        std::fs::create_dir_all(target_dir)?;
+
+        for builtin in BUILTIN_SKILLS {
+            let skill_dir = target_dir.join(builtin.name);
+            std::fs::create_dir_all(&skill_dir)?;
+            let skill_md = skill_dir.join("SKILL.md");
+            // 仅在文件不存在时写入（避免覆盖用户修改）
+            if !skill_md.exists() {
+                std::fs::write(&skill_md, builtin.content)?;
+                tracing::info!("Deployed builtin skill: {}", builtin.name);
+            }
+        }
+
+        tracing::info!("Skills deployed to {}", target_dir.display());
+        Ok(())
     }
 
     /// 获取多个 Skills 的合并内容，用于注入 Claude Code 的系统提示
