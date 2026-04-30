@@ -24,10 +24,9 @@
     </div>
 
     <div class="flex-1">
-      <MdEditor
+      <VditorEditor
         v-model="localContent"
-        :language="'zh-CN'"
-        :style="{ height: 'calc(100vh - 200px)' }"
+        :theme="theme"
         @update:model-value="handleContentChange"
       />
     </div>
@@ -51,8 +50,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import type { NoteDetail } from '../../types/index';
-import { MdEditor } from 'md-editor-v3';
-import 'md-editor-v3/lib/style.css';
+import VditorEditor from './VditorEditor.vue';
+import { useTheme } from '../../composables/useTheme';
 import { notesApi } from '../../composables/useApi';
 import { useNotesStore } from '../../stores/notes';
 import { Badge } from '@/components/ui/badge';
@@ -78,6 +77,7 @@ const emit = defineEmits<{
 }>();
 
 const notesStore = useNotesStore();
+const { theme } = useTheme();
 const localTitle = ref(props.noteDetail.note.title);
 const localContent = ref(props.noteDetail.content);
 const saving = ref(false);
