@@ -10,10 +10,11 @@ fn row_to_note(row: &Row) -> rusqlite::Result<Note> {
         id: row.get(0)?,
         title: row.get(1)?,
         file_name: row.get(2)?,
-        created_at: row.get(3)?,
-        updated_at: row.get(4)?,
-        file_size: row.get(5)?,
-        word_count: row.get(6)?,
+        source_url: row.get(3)?,
+        created_at: row.get(4)?,
+        updated_at: row.get(5)?,
+        file_size: row.get(6)?,
+        word_count: row.get(7)?,
     })
 }
 
@@ -62,14 +63,18 @@ pub fn create_note(conn: &Connection, title: &str) -> AppResult<Note> {
 }
 
 pub fn get_note_by_id(conn: &Connection, id: i64) -> AppResult<Option<Note>> {
-    let mut stmt = conn.prepare("SELECT * FROM notes WHERE id = ?")?;
+    let mut stmt = conn.prepare(
+        "SELECT id, title, file_name, source_url, created_at, updated_at, file_size, word_count
+         FROM notes WHERE id = ?",
+    )?;
     let note = stmt.query_row(params![id], row_to_note).ok();
     Ok(note)
 }
 
 pub fn list_notes(conn: &Connection, limit: i64, offset: i64) -> AppResult<Vec<Note>> {
     let mut stmt = conn.prepare(
-        "SELECT * FROM notes ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+        "SELECT id, title, file_name, source_url, created_at, updated_at, file_size, word_count
+         FROM notes ORDER BY updated_at DESC LIMIT ? OFFSET ?",
     )?;
     let rows = stmt.query_map(params![limit, offset], row_to_note)?;
     let mut notes = Vec::new();
@@ -128,4 +133,41 @@ pub fn delete_note(conn: &Connection, id: i64) -> AppResult<()> {
     conn.execute("DELETE FROM notes WHERE id = ?", params![id])?;
 
     Ok(())
+}
+
+pub fn create_note_with_content(
+    conn: &Connection,
+    title: &str,
+    content: &str,
+    source_url: &str,
+) -> AppResult<Note> {
+    let timestamp = chrono::Utc::now().timestamp();
+    let temp_file_name = format!("note_{}_temp.md", timestamp);
+
+    conn.execute(
+        "INSERT INTO notes (title, file_name, source_url) VALUES (?, ?, ?)",
+        params![title, temp_file_name, source_url],
+    )?;
+
+    let id = conn.last_insert_rowid();
+    let file_name = format!("note_{}_{}.md", timestamp, id);
+
+    conn.execute(
+        "UPDATE notes SET file_name = ? WHERE id = ?",
+        params![file_name, id],
+    )?;
+
+    let notes_dir = get_notes_dir(conn)?;
+    fs::create_dir_all(&notes_dir)?;
+    let file_path = safe_join(&notes_dir, &file_name)?;
+    fs::write(&file_path, content)?;
+
+    let file_size = content.len() as i64;
+    let word_count = content.split_whitespace().count() as i64;
+    conn.execute(
+        "UPDATE notes SET file_size = ?, word_count = ? WHERE id = ?",
+        params![file_size, word_count, id],
+    )?;
+
+    get_note_by_id(conn, id)?.ok_or_else(|| AppError::NotFound("Note not found".into()))
 }
