@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { XIcon } from 'lucide-vue-next'
 import InteractiveTerminal from '../claude/InteractiveTerminal.vue'
 
 const props = defineProps<{
@@ -9,6 +10,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
 }>()
+
+const terminalRef = ref<InstanceType<typeof InteractiveTerminal> | null>(null)
 
 const isOpen = computed({
   get: () => props.modelValue,
@@ -52,6 +55,18 @@ function onDoubleClick() {
     panelHeight.value = DEFAULT_HEIGHT
   }
 }
+
+function open() {
+  isOpen.value = true
+}
+
+async function sendPrompt(text: string) {
+  await terminalRef.value?.sendPrompt(text)
+}
+
+const sessionId = computed(() => terminalRef.value?.sessionId ?? null)
+
+defineExpose({ open, sendPrompt, sessionId })
 </script>
 
 <template>
@@ -89,13 +104,13 @@ function onDoubleClick() {
           class="text-xs text-muted-foreground hover:text-foreground px-1"
           @click="isOpen = false"
         >
-          x
+          <XIcon class="h-3.5 w-3.5" />
         </button>
       </div>
 
       <!-- Terminal content -->
       <div class="flex-1 overflow-hidden">
-        <InteractiveTerminal />
+        <InteractiveTerminal ref="terminalRef" />
       </div>
     </div>
   </div>

@@ -4,8 +4,10 @@ import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { usePersona } from '@/composables/usePersona';
+import { useClaude } from '@/composables/useClaude';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { XIcon } from 'lucide-vue-next';
 import 'xterm/css/xterm.css';
 
 interface Props {
@@ -22,7 +24,8 @@ const emit = defineEmits<{
   failed: [error: string];
 }>();
 
-const { updateSessionStatus, closeTerminalSession, resizeTerminal, startReading } = usePersona();
+const { updateSessionStatus } = usePersona();
+const { resizeTerminal, closeSession } = useClaude();
 
 const terminalRef = ref<HTMLElement | null>(null);
 const status = ref<'running' | 'completed' | 'failed'>('running');
@@ -70,42 +73,37 @@ const handleResize = () => {
 };
 
 const setupEventListeners = async () => {
-  unlistenOutput = await listen<string>('pty-output', (event) => {
-    if (terminal && event.payload) {
-      terminal.write(event.payload);
+  // 使用 session-specific 事件（新 Claude 系统）
+  unlistenOutput = await listen<string>(
+    `claude-pty-output-${props.sessionId}`,
+    (event) => {
+      if (terminal && event.payload) {
+        terminal.write(event.payload);
+      }
     }
-  });
+  );
 
-  unlistenStatus = await listen<{ sessionId: string; status: string; error?: string }>(
-    'session-status',
+  unlistenStatus = await listen<{ sessionId: string; status: string }>(
+    'claude-session-status',
     async (event) => {
       if (event.payload.sessionId === props.sessionId) {
-        const newStatus = event.payload.status as 'running' | 'completed' | 'failed';
-        status.value = newStatus;
-        if (newStatus === 'completed') {
+        if (event.payload.status === 'exited') {
+          status.value = 'completed';
           try {
             await updateSessionStatus(props.sessionId, 'completed');
           } catch (e) {
             console.error('updateSessionStatus failed:', e);
           }
           emit('completed');
-        } else if (newStatus === 'failed') {
-          try {
-            await updateSessionStatus(props.sessionId, 'failed');
-          } catch (e) {
-            console.error('updateSessionStatus failed:', e);
-          }
-          emit('failed', event.payload.error || '执行失败');
         }
       }
     }
   );
-
-  await startReading(props.sessionId);
+  // 不需要调用 startReading — start_claude_rewrite 命令已启动 output loop
 };
 
 const handleClose = async () => {
-  await closeTerminalSession(props.sessionId).catch(console.error);
+  await closeSession(props.sessionId).catch(console.error);
   cleanup();
   emit('close');
 };
@@ -153,7 +151,7 @@ onUnmounted(() => {
         class="text-[#a0a0a0] hover:text-[#d4d4d4]"
         @click="handleClose"
       >
-        ✕
+        <XIcon class="h-3.5 w-3.5" />
       </Button>
     </div>
 

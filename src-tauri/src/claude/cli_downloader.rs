@@ -1,6 +1,8 @@
+use std::io::Read;
 use std::path::PathBuf;
 use std::process::Command;
 
+use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
@@ -17,19 +19,19 @@ struct MirrorSource {
 const MIRROR_SOURCES: &[MirrorSource] = &[
     MirrorSource {
         name: "ghfast.top",
-        url_template: "https://ghfast.top/https://github.com/anthropics/claude-code/releases/latest/download/claude-code-{platform}-{arch}",
+        url_template: "https://ghfast.top/https://github.com/anthropics/claude-code/releases/latest/download/claude-{platform}-{arch}.{ext}",
     },
     MirrorSource {
         name: "ghproxy.net",
-        url_template: "https://ghproxy.net/https://github.com/anthropics/claude-code/releases/latest/download/claude-code-{platform}-{arch}",
+        url_template: "https://ghproxy.net/https://github.com/anthropics/claude-code/releases/latest/download/claude-{platform}-{arch}.{ext}",
     },
     MirrorSource {
         name: "gh-proxy.com",
-        url_template: "https://gh-proxy.com/https://github.com/anthropics/claude-code/releases/latest/download/claude-code-{platform}-{arch}",
+        url_template: "https://gh-proxy.com/https://github.com/anthropics/claude-code/releases/latest/download/claude-{platform}-{arch}.{ext}",
     },
     MirrorSource {
         name: "github.com (direct)",
-        url_template: "https://github.com/anthropics/claude-code/releases/latest/download/claude-code-{platform}-{arch}",
+        url_template: "https://github.com/anthropics/claude-code/releases/latest/download/claude-{platform}-{arch}.{ext}",
     },
 ];
 
@@ -118,13 +120,14 @@ impl CliDownloader {
 
     /// 检测首个可用的镜像源
     async fn find_available_mirror(&self) -> AppResult<(String, String)> {
-        let (platform, arch) = detect_platform_arch();
+        let (platform, arch, ext) = detect_platform_arch();
 
         for mirror in MIRROR_SOURCES {
             let url = mirror
                 .url_template
                 .replace("{platform}", &platform)
-                .replace("{arch}", &arch);
+                .replace("{arch}", &arch)
+                .replace("{ext}", &ext);
 
             // 只做 HEAD 请求快速测试连通性
             match self
@@ -232,17 +235,18 @@ impl CliDownloader {
             &app_handle,
             DownloadProgress {
                 phase: "extracting".to_string(),
-                message: "正在写入文件...".to_string(),
+                message: "正在解压安装...".to_string(),
                 progress: 0.8,
                 mirror: Some(mirror_name.clone()),
             },
         );
 
-        // 写入临时文件，然后移动到 current/claude
+        // 解压归档并提取 claude 二进制
         let current_dir = self.base_dir.join("current");
         std::fs::create_dir_all(&current_dir)?;
         let cli_path = current_dir.join("claude");
-        std::fs::write(&cli_path, &bytes)?;
+
+        extract_binary(&bytes, &cli_path)?;
 
         // 设置可执行权限（Unix）
         #[cfg(unix)]
@@ -340,16 +344,78 @@ impl Drop for LockGuard {
     }
 }
 
-/// 检测当前平台和架构，返回用于下载 URL 的标识
-fn detect_platform_arch() -> (String, String) {
+/// 从归档字节流中提取 claude 二进制到目标路径
+fn extract_binary(archive_bytes: &[u8], dest_path: &PathBuf) -> AppResult<()> {
+    // 尝试 tar.gz 解压（macOS / Linux）
+    let cursor = std::io::Cursor::new(archive_bytes);
+    let decoder = GzDecoder::new(cursor);
+    let mut archive = tar::Archive::new(decoder);
+
+    for entry in archive.entries().map_err(|e| {
+        crate::error::AppError::Internal(format!("读取归档失败: {}", e))
+    })? {
+        let mut entry = entry.map_err(|e| {
+            crate::error::AppError::Internal(format!("读取归档条目失败: {}", e))
+        })?;
+
+        let entry_path = entry.path().map_err(|e| {
+            crate::error::AppError::Internal(format!("获取条目路径失败: {}", e))
+        })?;
+
+        // 只提取名为 "claude" 的顶层文件
+        if entry_path.to_string_lossy() == "claude" {
+            let mut contents = Vec::new();
+            entry.read_to_end(&mut contents).map_err(|e| {
+                crate::error::AppError::Internal(format!("解压 claude 二进制失败: {}", e))
+            })?;
+            std::fs::write(dest_path, &contents)?;
+            return Ok(());
+        }
+    }
+
+    // tar.gz 中未找到 claude，尝试 zip（Windows）
+    extract_binary_from_zip(archive_bytes, dest_path)
+}
+
+/// 从 zip 归档中提取 claude 二进制（Windows）
+fn extract_binary_from_zip(archive_bytes: &[u8], dest_path: &PathBuf) -> AppResult<()> {
+    let reader = std::io::Cursor::new(archive_bytes);
+    let mut zip = zip::ZipArchive::new(reader).map_err(|e| {
+        crate::error::AppError::Internal(format!("读取 zip 归档失败: {}", e))
+    })?;
+
+    // 查找 claude.exe 或 claude
+    for i in 0..zip.len() {
+        let mut file = zip.by_index(i).map_err(|e| {
+            crate::error::AppError::Internal(format!("读取 zip 条目失败: {}", e))
+        })?;
+
+        let name = file.name().to_string();
+        if name == "claude" || name == "claude.exe" {
+            let mut contents = Vec::new();
+            std::io::Read::read_to_end(&mut file, &mut contents).map_err(|e| {
+                crate::error::AppError::Internal(format!("解压 claude 二进制失败: {}", e))
+            })?;
+            std::fs::write(dest_path, &contents)?;
+            return Ok(());
+        }
+    }
+
+    Err(crate::error::AppError::Internal(
+        "归档中未找到 claude 二进制文件".to_string(),
+    ))
+}
+
+/// 检测当前平台、架构和归档扩展名，返回用于下载 URL 的标识
+fn detect_platform_arch() -> (String, String, String) {
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
 
-    let platform = match os {
-        "macos" => "darwin",
-        "linux" => "linux",
-        "windows" => "windows",
-        _ => os,
+    let (platform, ext) = match os {
+        "macos" => ("darwin", "tar.gz"),
+        "linux" => ("linux", "tar.gz"),
+        "windows" => ("win32", "zip"),
+        _ => (os, "tar.gz"),
     };
 
     let arch = match arch {
@@ -358,7 +424,7 @@ fn detect_platform_arch() -> (String, String) {
         _ => arch,
     };
 
-    (platform.to_string(), arch.to_string())
+    (platform.to_string(), arch.to_string(), ext.to_string())
 }
 
 #[cfg(test)]
@@ -367,9 +433,9 @@ mod tests {
 
     #[test]
     fn test_detect_platform_arch() {
-        let (platform, arch) = detect_platform_arch();
+        let (platform, arch, ext) = detect_platform_arch();
         assert!(
-            ["darwin", "linux", "windows"].contains(&platform.as_str()),
+            ["darwin", "linux", "win32"].contains(&platform.as_str()),
             "Unexpected platform: {}",
             platform
         );
@@ -377,6 +443,11 @@ mod tests {
             ["x64", "arm64"].contains(&arch.as_str()),
             "Unexpected arch: {}",
             arch
+        );
+        assert!(
+            ["tar.gz", "zip"].contains(&ext.as_str()),
+            "Unexpected ext: {}",
+            ext
         );
     }
 

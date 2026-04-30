@@ -10,11 +10,11 @@
       <!-- New note button with dropdown -->
       <div class="relative px-3 pb-2">
         <div class="flex">
-          <Button class="flex-1 rounded-r-none" @click="handleCreateBlank">
-            + 新建笔记
+          <Button class="flex-1 rounded-r-none gap-1" @click="handleCreateBlank">
+            <PlusIcon class="h-4 w-4" /> 新建笔记
           </Button>
           <Button variant="default" class="rounded-l-none border-l border-white/20 px-2" @click="showNewMenu = !showNewMenu">
-            ▾
+            <ChevronDownIcon class="h-4 w-4" />
           </Button>
         </div>
         <div v-if="showNewMenu" class="absolute left-3 right-3 top-full z-10 overflow-hidden rounded-md border border-border bg-background shadow-md">
@@ -43,7 +43,7 @@
 
       <!-- Footer -->
       <div class="border-t border-border p-3 flex justify-center">
-        <Button variant="ghost" size="icon" @click="goToSettings">⚙️</Button>
+        <Button variant="ghost" size="icon" @click="goToSettings"><SettingsIcon class="h-4 w-4" /></Button>
       </div>
     </aside>
 
@@ -52,25 +52,27 @@
       <!-- Main -->
       <main class="flex flex-1 flex-col overflow-hidden">
         <div class="flex items-center gap-3 border-b border-border px-4" style="min-height: 44px;">
-          <Button variant="ghost" size="icon" @click="sidebarOpen = !sidebarOpen">≡</Button>
+          <Button variant="ghost" size="icon" @click="sidebarOpen = !sidebarOpen">
+	            <component :is="sidebarOpen ? PanelLeftCloseIcon : PanelLeftOpenIcon" class="h-4 w-4" />
+	          </Button>
           <span class="flex-1 text-sm font-medium">{{ currentTitle }}</span>
           <div class="flex items-center gap-2">
             <slot name="topbar-actions" />
             <Button variant="ghost" size="icon" @click="claudePanelOpen = !claudePanelOpen" title="Claude Code">
-              ⌨
+              <TerminalSquareIcon class="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="icon" @click="toggleTheme">
-              {{ theme === 'light' ? '☀️' : '🌙' }}
+              <component :is="theme === 'light' ? SunIcon : MoonIcon" class="h-4 w-4" />
             </Button>
           </div>
         </div>
-        <div class="flex-1 overflow-hidden">
+        <div class="flex-1 overflow-auto">
           <slot />
         </div>
       </main>
 
       <!-- BottomPanel: Claude Code 交互终端 -->
-      <BottomPanel v-model="claudePanelOpen" />
+      <BottomPanel ref="bottomPanelRef" v-model="claudePanelOpen" />
     </div>
 
     <CreateNoteDialog
@@ -82,12 +84,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, provide, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useNotesStore } from '../stores/notes';
 import { useTheme } from '../composables/useTheme';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { PlusIcon, ChevronDownIcon, SettingsIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, TerminalSquareIcon, SunIcon, MoonIcon } from 'lucide-vue-next';
 import CreateNoteDialog from './CreateNoteDialog.vue';
 import BottomPanel from './layout/BottomPanel.vue';
 
@@ -101,6 +104,16 @@ const searchQuery = ref('');
 const showNewMenu = ref(false);
 const showCreateFromLink = ref(false);
 const claudePanelOpen = ref(false);
+const bottomPanelRef = ref<InstanceType<typeof BottomPanel> | null>(null);
+
+provide('claudeTerminal', {
+  open: () => {
+    claudePanelOpen.value = true;
+    nextTick(() => bottomPanelRef.value?.open());
+  },
+  sendPrompt: (text: string) => bottomPanelRef.value?.sendPrompt(text),
+  isReady: () => !!bottomPanelRef.value?.sessionId,
+});
 
 const currentNoteId = computed(() => {
   const id = route.params.id;

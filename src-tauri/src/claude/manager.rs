@@ -16,6 +16,7 @@ pub struct ClaudeSession {
     pub child: Box<dyn portable_pty::Child + Send + Sync>,
     pub reader: Option<Box<dyn std::io::Read + Send>>,
     pub reader_handle: Option<std::thread::JoinHandle<()>>,
+    pub writer: Option<Box<dyn std::io::Write + Send>>,
 }
 
 /// Claude Code 进程管理器
@@ -50,6 +51,16 @@ impl ClaudeManager {
         app_handle: tauri::AppHandle,
         session_id: String,
     ) -> AppResult<()> {
+        self.create_session_with_args(app_handle, session_id, vec![])
+    }
+
+    /// 创建新的 Claude PTY 会话（支持额外 CLI 参数）
+    pub fn create_session_with_args(
+        &self,
+        _app_handle: tauri::AppHandle,
+        session_id: String,
+        extra_args: Vec<String>,
+    ) -> AppResult<()> {
         let cli_path = self.cli_path()?;
 
         let pty_system = native_pty_system();
@@ -67,6 +78,12 @@ impl ClaudeManager {
             .try_clone_reader()
             .map_err(|e| AppError::Internal(format!("PTY reader 克隆失败: {}", e)))?;
 
+        // 预先获取 writer（take_writer 只能调用一次）
+        let writer = pair
+            .master
+            .take_writer()
+            .map_err(|e| AppError::Internal(format!("PTY writer 获取失败: {}", e)))?;
+
         let config = load_config()?;
         let skills_dir = self.skills.skills_deploy_dir();
 
@@ -77,6 +94,11 @@ impl ClaudeManager {
         if skills_dir.exists() {
             cmd.arg("--add-dir");
             cmd.arg(skills_dir.as_os_str());
+        }
+
+        // 追加额外 CLI 参数
+        for arg in &extra_args {
+            cmd.arg(arg);
         }
 
         // 注入配置环境变量
@@ -93,12 +115,13 @@ impl ClaudeManager {
             child,
             reader: Some(reader),
             reader_handle: None,
+            writer: Some(writer),
         };
 
         let mut sessions = self.sessions.lock().unwrap();
         sessions.insert(session_id.clone(), session);
 
-        tracing::info!("Claude PTY session created: {}", session_id);
+        tracing::info!("Claude PTY session created: {} (extra_args: {:?})", session_id, extra_args);
         Ok(())
     }
 
@@ -125,12 +148,16 @@ impl ClaudeManager {
         let handle = std::thread::spawn(move || {
             tracing::info!("[claude-pty-reader] started for session {}", sid);
             let mut reader = reader;
-            let mut buf = [0u8; 4096];
+            let mut buf = [0u8; 8192];
+            let mut total_bytes: usize = 0;
 
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) => {
-                        tracing::info!("[claude-pty-reader] EOF for session {}", sid);
+                        tracing::info!(
+                            "[claude-pty-reader] EOF for session {} (total {} bytes)",
+                            sid, total_bytes
+                        );
                         let _ = app_handle.emit(
                             "claude-session-status",
                             serde_json::json!({"sessionId": sid, "status": "exited"}),
@@ -138,8 +165,19 @@ impl ClaudeManager {
                         break;
                     }
                     Ok(n) => {
+                        total_bytes += n;
                         let output = String::from_utf8_lossy(&buf[..n]).to_string();
-                        let _ = app_handle.emit(&format!("claude-pty-output-{}", sid), output);
+                        let event_name = format!("claude-pty-output-{}", sid);
+                        tracing::debug!(
+                            "[claude-pty-reader] session {} read {} bytes, emitting to {}",
+                            sid, n, event_name
+                        );
+                        if let Err(e) = app_handle.emit(&event_name, &output) {
+                            tracing::error!(
+                                "[claude-pty-reader] emit failed for session {}: {}",
+                                sid, e
+                            );
+                        }
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
                     Err(e) => {
@@ -159,15 +197,20 @@ impl ClaudeManager {
 
     /// 向 PTY 写入用户输入
     pub fn write_input(&self, session_id: &str, data: &str) -> AppResult<()> {
-        let sessions = self.sessions.lock().unwrap();
+        let mut sessions = self.sessions.lock().unwrap();
         let session = sessions
-            .get(session_id)
+            .get_mut(session_id)
             .ok_or_else(|| AppError::Internal(format!("会话 {} 不存在", session_id)))?;
 
-        let mut writer = session
-            .master
-            .take_writer()
-            .map_err(|e| AppError::Internal(format!("PTY writer 获取失败: {}", e)))?;
+        let writer = session
+            .writer
+            .as_mut()
+            .ok_or_else(|| AppError::Internal(format!("会话 {} 的 writer 不可用", session_id)))?;
+        tracing::debug!(
+            "[claude-pty-writer] session {} writing {} bytes",
+            session_id,
+            data.len()
+        );
         write!(writer, "{}", data)?;
         writer.flush()?;
         Ok(())

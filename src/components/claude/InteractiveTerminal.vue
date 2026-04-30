@@ -44,11 +44,19 @@ function initTerminal() {
   fitAddon = new FitAddon()
   terminal.loadAddon(fitAddon)
   terminal.open(terminalRef.value)
-  nextTick(() => fitAddon?.fit())
+  nextTick(() => {
+    fitAddon?.fit()
+    terminal?.focus()
+  })
 
   terminal.onData((data) => {
+    console.log('[Claude Terminal] onData fired, data length:', data.length, 'sessionId:', sessionId.value)
     if (sessionId.value) {
-      writeInput(sessionId.value, data).catch(console.error)
+      writeInput(sessionId.value, data).catch((err) => {
+        console.error('[Claude Terminal] writeInput error:', err)
+      })
+    } else {
+      console.warn('[Claude Terminal] onData fired but no sessionId')
     }
   })
 }
@@ -78,7 +86,14 @@ async function setupStatusListener() {
 async function setupOutputListener(sid: string) {
   // Clean up previous output listener if any (e.g. on restart)
   unlistenOutput?.()
-  unlistenOutput = await listen<string>(`claude-pty-output-${sid}`, (event) => {
+  const eventName = `claude-pty-output-${sid}`
+  console.log('[Claude Terminal] Setting up output listener for:', eventName)
+  let outputCount = 0
+  unlistenOutput = await listen<string>(eventName, (event) => {
+    outputCount++
+    if (outputCount <= 3) {
+      console.log(`[Claude Terminal] Output event #${outputCount}:`, event.payload?.substring(0, 100))
+    }
     if (terminal && event.payload) {
       terminal.write(event.payload)
     }
@@ -87,7 +102,9 @@ async function setupOutputListener(sid: string) {
 
 async function startClaude() {
   error.value = null
+  console.log('[Claude Terminal] Starting Claude CLI check...')
   const cliStatus = await checkInstalled()
+  console.log('[Claude Terminal] CLI status:', cliStatus)
 
   if (!cliStatus.installed) {
     status.value = 'installing'
@@ -106,13 +123,20 @@ async function startClaude() {
 
   status.value = 'running'
   try {
+    console.log('[Claude Terminal] Starting session...')
     const sid = await startSession()
+    console.log('[Claude Terminal] Session started:', sid)
     sessionId.value = sid
     await setupOutputListener(sid)
+    console.log('[Claude Terminal] Output listener attached')
     await startOutput(sid)
+    console.log('[Claude Terminal] Output loop started')
     terminal?.write('\x1b[32mClaude Code 已启动\x1b[0m\r\n')
+    // 确保终端获得焦点
+    terminal?.focus()
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
+    console.error('[Claude Terminal] Start failed:', msg)
     error.value = msg
     terminal?.write(`\x1b[31m启动失败: ${msg}\x1b[0m\r\n`)
     status.value = 'idle'
@@ -144,6 +168,13 @@ function cleanup() {
   window.removeEventListener('resize', handleResize)
 }
 
+async function sendPrompt(text: string) {
+  if (!sessionId.value) return
+  await writeInput(sessionId.value, text + '\r')
+}
+
+defineExpose({ sessionId, sendPrompt })
+
 onMounted(() => {
   initTerminal()
   setupStatusListener()
@@ -159,18 +190,13 @@ onUnmounted(() => {
 <template>
   <div class="flex h-full flex-col bg-[#1a1a1a]">
     <!-- Terminal body -->
-    <div ref="terminalRef" class="flex-1 overflow-hidden p-2" />
+    <div ref="terminalRef" class="flex-1 overflow-hidden p-2" @click="terminal?.focus()" />
 
     <!-- Restart button (shown when exited) -->
-    <div
-      v-if="status === 'exited'"
-      class="flex items-center justify-center gap-3 border-t border-[#3e3e3e] px-3 py-2"
-    >
+    <div v-if="status === 'exited'" class="flex items-center justify-center gap-3 border-t border-[#3e3e3e] px-3 py-2">
       <span class="text-xs text-[#888]">会话已结束</span>
-      <button
-        class="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-500 transition-colors"
-        @click="restart"
-      >
+      <button class="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-500 transition-colors"
+        @click="restart">
         重新启动
       </button>
     </div>
