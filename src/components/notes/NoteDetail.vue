@@ -1,54 +1,51 @@
 <template>
-  <input v-model="localTitle" type="text"
-    class="w-full border-none bg-transparent text-2xl font-semibold outline-none placeholder:text-muted-foreground"
-    placeholder="笔记标题" @blur="handleSave" />
-  <div class="mt-3 flex items-center gap-2">
-    <Button :disabled="saving" @click="handleSave">
-      保存
-    </Button>
-    <Button variant="secondary" @click="showPersonaDialog = true">
-      ✨ 人格撰写
-    </Button>
-    <Button v-if="currentSessionId" variant="outline" @click="reopenTerminal">
-      🖥️ 查看终端
-    </Button>
-    <Button variant="destructive" @click="handleDelete">
-      删除
-    </Button>
-  </div>
-  <div class="flex items-center gap-4 border-b px-6 py-2 text-sm text-muted-foreground">
-    <span>创建于 {{ formatDate(noteDetail.note.created_at) }}</span>
-    <span>更新于 {{ formatDate(noteDetail.note.updated_at) }}</span>
-    <Badge v-if="saveStatus" :variant="saveStatus === 'success' ? 'default' : 'destructive'" class="ml-auto">
-      {{ saveStatus === 'success' ? '已保存' : '保存失败' }}
-    </Badge>
-  </div>
+  <div class="flex h-full flex-col p-4">
+    <input
+      v-model="localTitle"
+      type="text"
+      class="w-full border-none bg-transparent text-2xl font-semibold outline-none placeholder:text-muted-foreground"
+      placeholder="笔记标题"
+      @blur="handleSave"
+    />
+    <div class="mt-1 flex items-center gap-4 border-b py-2 text-xs text-muted-foreground">
+      <span>创建于 {{ formatDate(noteDetail.note.created_at) }}</span>
+      <span>更新于 {{ formatDate(noteDetail.note.updated_at) }}</span>
+      <a
+        v-if="noteDetail.note.source_url"
+        :href="noteDetail.note.source_url"
+        target="_blank"
+        class="text-primary no-underline hover:underline"
+      >
+        来源链接
+      </a>
+      <Badge v-if="saveStatus" :variant="saveStatus === 'success' ? 'default' : 'destructive'" class="ml-auto">
+        {{ saveStatus === 'success' ? '已保存' : '保存失败' }}
+      </Badge>
+    </div>
 
-  <div class="flex-1">
-    <MdEditor v-model="localContent" :language="'zh-CN'" :style="{ height: 'calc(100vh - 260px)' }"
-      @update:model-value="handleContentChange" />
-  </div>
-
-  <PersonaDialog
-    :open="showPersonaDialog"
-    :note-id="noteDetail.note.id"
-    @update:open="showPersonaDialog = $event"
-    @confirm="handlePersonaConfirm"
-  />
-
-  <Dialog :open="showTerminalDialog && showTerminal" @update:open="handleTerminalDialogChange">
-    <DialogContent class="flex h-[90vh] w-[95vw] max-w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:h-[90vh] sm:max-w-[95vw]">
-      <TerminalPanel
-        v-if="showTerminal"
-        :session-id="currentSessionId"
-        :note-id="noteDetail.note.id"
-        :persona-name="currentPersonaName"
-        @close="handleTerminalClose"
-        @completed="handleRewriteCompleted"
-        @failed="handleRewriteFailed"
+    <div class="flex-1">
+      <MdEditor
+        v-model="localContent"
+        :language="'zh-CN'"
+        :style="{ height: 'calc(100vh - 200px)' }"
+        @update:model-value="handleContentChange"
       />
-    </DialogContent>
-  </Dialog>
+    </div>
+
+    <Dialog :open="showTerminalDialog && showTerminal" @update:open="handleTerminalDialogChange">
+      <DialogContent class="flex h-[90vh] w-[95vw] max-w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:h-[90vh] sm:max-w-[95vw]">
+        <TerminalPanel
+          v-if="showTerminal"
+          :session-id="terminalSessionId"
+          :note-id="noteDetail.note.id"
+          :persona-name="personaName"
+          @close="handleTerminalClose"
+          @completed="handleRewriteCompleted"
+          @failed="handleRewriteFailed"
+        />
+      </DialogContent>
+    </Dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -58,31 +55,27 @@ import { MdEditor } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
 import { notesApi } from '../../composables/useApi';
 import { useNotesStore } from '../../stores/notes';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import PersonaDialog from '@/components/persona/PersonaDialog.vue';
 import TerminalPanel from '@/components/persona/TerminalPanel.vue';
-import { usePersona } from '@/composables/usePersona';
-import type { Persona } from '@/types/persona';
 
 interface Props {
   noteDetail: NoteDetail;
+  terminalSessionId?: string;
+  personaName?: string;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  terminalSessionId: '',
+  personaName: '',
+});
+
 const emit = defineEmits<{
   save: [id: number, title: string, content: string];
   delete: [id: number];
+  terminalClose: [];
+  rewriteCompleted: [];
 }>();
-
-const { startPersonaRewrite } = usePersona();
-
-const showPersonaDialog = ref(false);
-const showTerminal = ref(false);
-const showTerminalDialog = ref(false);
-const currentSessionId = ref('');
-const currentPersonaName = ref('');
 
 const notesStore = useNotesStore();
 const localTitle = ref(props.noteDetail.note.title);
@@ -91,9 +84,19 @@ const saving = ref(false);
 const saveStatus = ref<'success' | 'error' | null>(null);
 let saveTimer: number | null = null;
 
+const showTerminal = ref(false);
+const showTerminalDialog = ref(false);
+
 watch(() => props.noteDetail, (newVal) => {
   localTitle.value = newVal.note.title;
   localContent.value = newVal.content;
+});
+
+watch(() => props.terminalSessionId, (sessionId) => {
+  if (sessionId) {
+    showTerminal.value = true;
+    showTerminalDialog.value = true;
+  }
 });
 
 function handleContentChange() {
@@ -139,53 +142,23 @@ async function handleSave() {
   }
 }
 
-function handleDelete() {
-  if (confirm('确定要删除这篇笔记吗？')) {
-    emit('delete', props.noteDetail.note.id);
-  }
-}
-
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
   return date.toLocaleString('zh-CN');
 }
 
-async function handlePersonaConfirm(persona: Persona) {
-  showPersonaDialog.value = false;
-  try {
-    const notePath = `~/.omnilink/notes/${props.noteDetail.note.file_name}`;
-    const sessionId = await startPersonaRewrite({
-      noteId: props.noteDetail.note.id,
-      notePath,
-      personaSkill: persona.skill_name,
-      mode: 'manual',
-    });
-    currentSessionId.value = sessionId;
-    currentPersonaName.value = persona.name;
-    showTerminal.value = true;
-    showTerminalDialog.value = true;
-  } catch (error) {
-    console.error('启动人格重构失败:', error);
-  }
-}
-
 function handleTerminalClose() {
   showTerminal.value = false;
   showTerminalDialog.value = false;
-  currentSessionId.value = '';
-  currentPersonaName.value = '';
+  emit('terminalClose');
 }
 
 function handleTerminalDialogChange(open: boolean) {
   if (!open) {
     showTerminal.value = false;
     showTerminalDialog.value = false;
+    emit('terminalClose');
   }
-}
-
-function reopenTerminal() {
-  showTerminal.value = true;
-  showTerminalDialog.value = true;
 }
 
 async function handleRewriteCompleted() {
@@ -194,6 +167,7 @@ async function handleRewriteCompleted() {
   props.noteDetail.content = detail.content;
   localTitle.value = detail.note.title;
   localContent.value = detail.content;
+  emit('rewriteCompleted');
 }
 
 function handleRewriteFailed(error: string) {
