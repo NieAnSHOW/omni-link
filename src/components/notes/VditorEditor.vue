@@ -16,18 +16,27 @@ const emit = defineEmits<{
   'update:modelValue': [value: string];
 }>();
 
+const wrapperRef = ref<HTMLDivElement>();
 const editorRef = ref<HTMLDivElement>();
 let vditor: Vditor | null = null;
 let isInternalUpdate = false;
 
 onMounted(() => {
-  if (!editorRef.value) return;
+  if (!editorRef.value || !wrapperRef.value) return;
 
   vditor = new Vditor(editorRef.value, {
     mode: 'ir',
     value: props.modelValue,
+    height: '100%',
     theme: props.theme === 'dark' ? 'dark' : 'classic',
-    toolbar: [],
+    toolbar: [
+      'headings', 'bold', 'italic', 'strike', '|',
+      'line', 'quote', 'list', 'ordered-list', 'check', '|',
+      'code', 'inline-code', 'link', 'table', '|',
+      'undo', 'redo', 'fullscreen', 'edit-mode', '|',
+      'more',
+    ],
+    toolbarConfig: { hide: false },
     cache: { enable: false },
     input: (value: string) => {
       if (isInternalUpdate) return;
@@ -57,5 +66,24 @@ watch(() => props.theme, (newTheme) => {
 </script>
 
 <template>
-  <div ref="editorRef" class="vditor-editor-container" />
+  <div ref="wrapperRef" class="h-full min-h-0 overflow-hidden" style="height: calc(100vh - 200px)">
+    <div ref="editorRef" />
+  </div>
 </template>
+
+<style scoped>
+:deep(.vditor) {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+:deep(.vditor-content) {
+  min-height: 0 !important;
+  overflow: auto;
+}
+
+:deep(.vditor-ir) {
+  min-height: 0 !important;
+  overflow: auto;
+}
+</style>

@@ -11,7 +11,9 @@
     </div>
   </div>
   <template v-else>
-    <AppLayout />
+    <AppLayout>
+      <router-view />
+    </AppLayout>
     <ScrollToTop />
     <Toaster />
   </template>
