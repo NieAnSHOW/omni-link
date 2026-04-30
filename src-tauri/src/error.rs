@@ -26,6 +26,9 @@ pub enum AppError {
 
     #[error("Config error: {0}")]
     Config(String),
+
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 impl From<AppError> for InvokeError {
