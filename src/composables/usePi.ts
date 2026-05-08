@@ -16,7 +16,7 @@ export function usePi() {
 
   const startPrintSession = async (prompt: string): Promise<string> => {
     return invoke<string>('start_persona_rewrite', {
-      noteId: 0,
+      noteId: null,
       notePath: '',
       personaSkill: prompt,
       mode: 'manual',

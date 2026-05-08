@@ -9,6 +9,57 @@ use super::runtime::PiRuntime;
 use crate::config::{load_config, ClaudeConfig};
 use crate::error::{AppError, AppResult};
 
+/// Write provider config to pi CLI's models.json for custom baseUrl/model
+pub fn write_pi_provider_config(config: &ClaudeConfig) -> AppResult<()> {
+    if config.base_url.is_empty() && config.model.is_empty() {
+        return Ok(());
+    }
+    let pi_agent_dir = dirs::home_dir()
+        .expect("Cannot determine home directory")
+        .join(".pi")
+        .join("agent");
+    std::fs::create_dir_all(&pi_agent_dir)?;
+    let models_path = pi_agent_dir.join("models.json");
+
+    let mut models_config: serde_json::Value = if models_path.exists() {
+        let content = std::fs::read_to_string(&models_path)?;
+        serde_json::from_str(&content).unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    let mut provider_overrides = serde_json::Map::new();
+    if !config.base_url.is_empty() {
+        provider_overrides.insert("baseUrl".to_string(), serde_json::json!(config.base_url));
+    }
+    if !config.model.is_empty() {
+        provider_overrides.insert("models".to_string(), serde_json::json!([
+            {
+                "id": config.model,
+                "name": config.model,
+            }
+        ]));
+    }
+
+    let provider_config = serde_json::Value::Object(provider_overrides);
+    if let Some(obj) = models_config.as_object_mut() {
+        if let Some(providers) = obj.get_mut("providers") {
+            if let Some(p) = providers.as_object_mut() {
+                p.insert(config.provider.clone(), provider_config);
+            }
+        } else {
+            let mut providers = serde_json::Map::new();
+            providers.insert(config.provider.clone(), provider_config);
+            obj.insert("providers".to_string(), serde_json::Value::Object(providers));
+        }
+    }
+
+    let content = serde_json::to_string_pretty(&models_config)?;
+    std::fs::write(&models_path, content)?;
+    tracing::info!("Wrote pi provider config to: {}", models_path.display());
+    Ok(())
+}
+
 /// A single PTY session
 pub struct PiSession {
     pub id: String,
@@ -63,6 +114,7 @@ impl PiManager {
             .map_err(|e| AppError::Internal(format!("PTY writer 获取失败: {}", e)))?;
 
         let config = load_config()?;
+        write_pi_provider_config(&config.claude_code)?;
         let mut cmd = CommandBuilder::new(process_cmd.get_program());
         if let Some(dir) = process_cmd.get_current_dir() {
             cmd.cwd(dir);
@@ -121,6 +173,7 @@ impl PiManager {
             .map_err(|e| AppError::Internal(format!("PTY writer 获取失败: {}", e)))?;
 
         let config = load_config()?;
+        write_pi_provider_config(&config.claude_code)?;
         let mut cmd = CommandBuilder::new(process_cmd.get_program());
         if let Some(dir) = process_cmd.get_current_dir() {
             cmd.cwd(dir);
@@ -267,19 +320,29 @@ impl PiManager {
     }
 
     fn apply_config_env(cmd: &mut CommandBuilder, config: &ClaudeConfig) {
-        if !config.api_key.is_empty() {
-            cmd.env("ANTHROPIC_API_KEY", &config.api_key);
-        }
-        if config.provider == "openai-compatible" && !config.base_url.is_empty() {
-            cmd.env("OPENAI_BASE_URL", &config.base_url);
-            if !config.api_key.is_empty() {
-                cmd.env("OPENAI_API_KEY", &config.api_key);
+        match config.provider.as_str() {
+            "openai-compatible" | "custom" => {
+                if !config.api_key.is_empty() {
+                    cmd.env("OPENAI_API_KEY", &config.api_key);
+                }
+                if !config.base_url.is_empty() {
+                    cmd.env("OPENAI_BASE_URL", &config.base_url);
+                }
+                if !config.model.is_empty() {
+                    cmd.env("OPENAI_MODEL", &config.model);
+                }
             }
-        } else if !config.base_url.is_empty() {
-            cmd.env("ANTHROPIC_BASE_URL", &config.base_url);
-        }
-        if !config.model.is_empty() {
-            cmd.env("ANTHROPIC_MODEL", &config.model);
+            _ => {
+                if !config.api_key.is_empty() {
+                    cmd.env("ANTHROPIC_API_KEY", &config.api_key);
+                }
+                if !config.base_url.is_empty() {
+                    cmd.env("ANTHROPIC_BASE_URL", &config.base_url);
+                }
+                if !config.model.is_empty() {
+                    cmd.env("ANTHROPIC_MODEL", &config.model);
+                }
+            }
         }
     }
 }

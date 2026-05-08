@@ -36,7 +36,7 @@ pub fn init_schema(conn: &Connection) -> AppResult<()> {
 
         CREATE TABLE IF NOT EXISTS terminal_sessions (
             id TEXT PRIMARY KEY,
-            note_id INTEGER NOT NULL,
+            note_id INTEGER,
             persona_skill TEXT NOT NULL,
             mode TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'running',
@@ -65,6 +65,7 @@ fn migrate(conn: &Connection) -> AppResult<()> {
 
     migrate_links_to_notes(conn)?;
     drop_old_tables(conn)?;
+    migrate_terminal_sessions_note_id_nullable(conn)?;
 
     Ok(())
 }
@@ -142,5 +143,35 @@ fn drop_old_tables(conn: &Connection) -> AppResult<()> {
          DROP INDEX IF EXISTS idx_contents_link;",
     )?;
     tracing::info!("Dropped old tables");
+    Ok(())
+}
+
+fn migrate_terminal_sessions_note_id_nullable(conn: &Connection) -> AppResult<()> {
+    // PRAGMA table_info returns: cid, name, type, notnull, dflt_value, pk
+    let notnull: i32 = conn
+        .query_row(
+            "SELECT [notnull] FROM pragma_table_info('terminal_sessions') WHERE name = 'note_id'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    if notnull != 0 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS terminal_sessions_new (
+                id TEXT PRIMARY KEY,
+                note_id INTEGER,
+                persona_skill TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'running',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+            );
+            INSERT OR IGNORE INTO terminal_sessions_new SELECT * FROM terminal_sessions;
+            DROP TABLE terminal_sessions;
+            ALTER TABLE terminal_sessions_new RENAME TO terminal_sessions;",
+        )?;
+        tracing::info!("Migrated terminal_sessions: note_id is now nullable");
+    }
     Ok(())
 }

@@ -19,7 +19,7 @@ export interface CreatePersona {
 
 export interface TerminalSession {
   id: string;
-  note_id: number;
+  note_id: number | null;
   persona_skill: string;
   mode: 'smart' | 'manual';
   status: 'running' | 'completed' | 'failed';
@@ -27,13 +27,13 @@ export interface TerminalSession {
 }
 
 export interface CreateTerminalSession {
-  note_id: number;
+  note_id: number | null;
   persona_skill: string;
   mode: 'smart' | 'manual';
 }
 
 export interface StartRewriteParams {
-  noteId: number;
+  noteId: number | null;
   notePath: string;
   personaSkill: string;
   mode: 'smart' | 'manual';

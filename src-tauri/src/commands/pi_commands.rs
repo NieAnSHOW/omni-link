@@ -6,7 +6,7 @@ use crate::config::{self, ClaudeConfig, ConfigState};
 use crate::db::DbState;
 use crate::error::AppResult;
 use crate::models::terminal_session::CreateTerminalSession;
-use crate::pi::manager::PiManager;
+use crate::pi::manager::{PiManager, write_pi_provider_config};
 use crate::pi::runtime::PiRuntime;
 use crate::pi::skills::PiSkillsManager;
 use crate::repositories::terminal_session_repo;
@@ -88,7 +88,7 @@ pub async fn resize_pi_terminal(
 
 #[tauri::command]
 pub async fn start_persona_rewrite(
-    note_id: i64,
+    note_id: Option<i64>,
     note_path: String,
     persona_skill: String,
     mode: String,
@@ -96,7 +96,7 @@ pub async fn start_persona_rewrite(
     db: State<'_, DbState>,
     manager: State<'_, PiManagerState>,
 ) -> AppResult<String> {
-    tracing::info!("start_persona_rewrite: note_id={}, persona={}", note_id, persona_skill);
+    tracing::info!("start_persona_rewrite: note_id={:?}, persona={}", note_id, persona_skill);
 
     let conn = db.0.lock().unwrap();
     let create_session = CreateTerminalSession {
@@ -152,6 +152,7 @@ pub async fn update_agent_config(
     if let Some(v) = base_url { cfg.claude_code.base_url = v; }
     if let Some(v) = model { cfg.claude_code.model = v; }
     config::save_config(&cfg)?;
+    write_pi_provider_config(&cfg.claude_code)?;
     Ok(())
 }
 
