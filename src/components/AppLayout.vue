@@ -166,10 +166,9 @@ function handleCreateFromLink() {
   showCreateFromLink.value = true;
 }
 
-async function handleLinkNoteCreated(noteId: number) {
+async function handleLinkNoteCreated() {
   showCreateFromLink.value = false;
   await notesStore.fetchNotes();
-  router.push(`/notes/${noteId}`);
 }
 
 function formatTime(dateStr: string): string {

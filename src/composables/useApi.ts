@@ -49,7 +49,7 @@ export const notesApi = {
     return invoke('delete_note', { id });
   },
 
-  async createNoteFromLink(url: string): Promise<NoteDetail> {
+  async createNoteFromLink(url: string): Promise<string> {
     return invoke('create_note_from_link', { url });
   },
 };

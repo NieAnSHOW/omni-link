@@ -27,7 +27,7 @@ import { Button } from '@/components/ui/button';
 
 const emit = defineEmits<{
   close: [];
-  created: [noteId: number];
+  created: [];
 }>();
 
 const url = ref('');
@@ -39,8 +39,8 @@ async function handleCreate() {
   loading.value = true;
   error.value = null;
   try {
-    const result = await notesApi.createNoteFromLink(url.value.trim());
-    emit('created', result.note.id);
+    await notesApi.createNoteFromLink(url.value.trim());
+    emit('created');
     emit('close');
   } catch (e) {
     error.value = e instanceof Error ? e.message : '解析失败，请检查 URL 或重试';
