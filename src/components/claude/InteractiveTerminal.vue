@@ -3,19 +3,19 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { useClaude } from '@/composables/useClaude'
+import { usePi } from '@/composables/usePi'
 import 'xterm/css/xterm.css'
 
 const {
   checkInstalled,
-  installCli,
+  installPi,
   startSession,
-  startPrintSession: cliStartPrintSession,
+  startPrintSession: piStartPrintSession,
   startOutput,
   writeInput,
   resizeTerminal,
   closeSession,
-} = useClaude()
+} = usePi()
 
 const terminalRef = ref<HTMLElement | null>(null)
 const status = ref<'idle' | 'installing' | 'running' | 'exited'>('idle')
@@ -51,13 +51,10 @@ function initTerminal() {
   })
 
   terminal.onData((data) => {
-    console.log('[Claude Terminal] onData fired, data length:', data.length, 'sessionId:', sessionId.value)
     if (sessionId.value) {
       writeInput(sessionId.value, data).catch((err) => {
-        console.error('[Claude Terminal] writeInput error:', err)
+        console.error('[Pi Terminal] writeInput error:', err)
       })
-    } else {
-      console.warn('[Claude Terminal] onData fired but no sessionId')
     }
   })
 }
@@ -74,7 +71,7 @@ function handleResize() {
 
 async function setupStatusListener() {
   unlistenStatus = await listen<{ sessionId: string; status: string }>(
-    'claude-session-status',
+    'pi-session-status',
     (event) => {
       if (event.payload.status === 'exited') {
         status.value = 'exited'
@@ -85,38 +82,30 @@ async function setupStatusListener() {
 }
 
 async function setupOutputListener(sid: string) {
-  // Clean up previous output listener if any (e.g. on restart)
   unlistenOutput?.()
-  const eventName = `claude-pty-output-${sid}`
-  console.log('[Claude Terminal] Setting up output listener for:', eventName)
-  let outputCount = 0
+  const eventName = `pi-pty-output-${sid}`
+  console.log('[Pi Terminal] Setting up output listener for:', eventName)
   unlistenOutput = await listen<string>(eventName, (event) => {
-    outputCount++
-    if (outputCount <= 3) {
-      console.log(`[Claude Terminal] Output event #${outputCount}:`, event.payload?.substring(0, 100))
-    }
     if (terminal && event.payload) {
       terminal.write(event.payload)
     }
   })
 }
 
-async function startClaude() {
+async function startPi() {
   error.value = null
-  console.log('[Claude Terminal] Starting Claude CLI check...')
   const cliStatus = await checkInstalled()
-  console.log('[Claude Terminal] CLI status:', cliStatus)
 
-  if (!cliStatus.installed) {
+  if (!cliStatus.piInstalled) {
     status.value = 'installing'
-    terminal?.write('\x1b[36m正在下载 Claude CLI...\x1b[0m\r\n')
+    terminal?.write('\x1b[36m正在安装 Pi CLI (Node.js + pi)...\x1b[0m\r\n')
     try {
-      await installCli()
-      terminal?.write('\x1b[32m下载完成！\x1b[0m\r\n')
+      await installPi()
+      terminal?.write('\x1b[32m安装完成！\x1b[0m\r\n')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       error.value = msg
-      terminal?.write(`\x1b[31m下载失败: ${msg}\x1b[0m\r\n`)
+      terminal?.write(`\x1b[31m安装失败: ${msg}\x1b[0m\r\n`)
       status.value = 'idle'
       return
     }
@@ -124,20 +113,14 @@ async function startClaude() {
 
   status.value = 'running'
   try {
-    console.log('[Claude Terminal] Starting session...')
     const sid = await startSession()
-    console.log('[Claude Terminal] Session started:', sid)
     sessionId.value = sid
     await setupOutputListener(sid)
-    console.log('[Claude Terminal] Output listener attached')
     await startOutput(sid)
-    console.log('[Claude Terminal] Output loop started')
-    terminal?.write('\x1b[32mClaude Code 已启动\x1b[0m\r\n')
-    // 确保终端获得焦点
+    terminal?.write('\x1b[32mPi Agent 已启动\x1b[0m\r\n')
     terminal?.focus()
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
-    console.error('[Claude Terminal] Start failed:', msg)
     error.value = msg
     terminal?.write(`\x1b[31m启动失败: ${msg}\x1b[0m\r\n`)
     status.value = 'idle'
@@ -150,7 +133,7 @@ async function restart() {
     sessionId.value = null
   }
   terminal?.clear()
-  await startClaude()
+  await startPi()
 }
 
 function cleanup() {
@@ -182,16 +165,16 @@ async function sendPrompt(text: string) {
 async function startPrintSession(prompt: string) {
   error.value = null
   const cliStatus = await checkInstalled()
-  if (!cliStatus.installed) {
+  if (!cliStatus.piInstalled) {
     status.value = 'installing'
-    terminal?.write('\x1b[36m正在下载 Claude CLI...\x1b[0m\r\n')
+    terminal?.write('\x1b[36m正在安装 Pi CLI...\x1b[0m\r\n')
     try {
-      await installCli()
-      terminal?.write('\x1b[32m下载完成！\x1b[0m\r\n')
+      await installPi()
+      terminal?.write('\x1b[32m安装完成！\x1b[0m\r\n')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       error.value = msg
-      terminal?.write(`\x1b[31m下载失败: ${msg}\x1b[0m\r\n`)
+      terminal?.write(`\x1b[31m安装失败: ${msg}\x1b[0m\r\n`)
       status.value = 'idle'
       return
     }
@@ -200,8 +183,8 @@ async function startPrintSession(prompt: string) {
   status.value = 'running'
   try {
     terminal?.clear()
-    terminal?.write('\x1b[36m正在执行任务（print mode, 跳过权限确认）...\x1b[0m\r\n\r\n')
-    const sid = await cliStartPrintSession(prompt)
+    terminal?.write('\x1b[36m正在执行任务（print mode）...\x1b[0m\r\n\r\n')
+    const sid = await piStartPrintSession(prompt)
     sessionId.value = sid
     await setupOutputListener(sid)
     await startOutput(sid)
@@ -220,7 +203,7 @@ onMounted(() => {
   initTerminal()
   setupStatusListener()
   window.addEventListener('resize', handleResize)
-  startClaude()
+  startPi()
 })
 
 onUnmounted(() => {
