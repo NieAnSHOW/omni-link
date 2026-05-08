@@ -18,5 +18,14 @@ pub struct NoteDetail {
     pub content: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FileEntry {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    #[serde(default)]
+    pub children: Vec<FileEntry>,
+}
+
 pub mod persona;
 pub mod terminal_session;

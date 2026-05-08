@@ -41,6 +41,8 @@ pub struct AppConfig {
     pub log: LogConfig,
     #[serde(default)]
     pub claude_code: ClaudeConfig,
+    #[serde(default)]
+    pub workspace_path: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -116,6 +118,7 @@ impl Default for AppConfig {
             },
             log: LogConfig::default(),
             claude_code: ClaudeConfig::default(),
+            workspace_path: None,
         }
     }
 }
@@ -195,6 +198,7 @@ pub fn migrate_ai_config_from_db(conn: &rusqlite::Connection) -> AppResult<()> {
                 },
                 log: LogConfig::default(),
                 claude_code: ClaudeConfig::default(),
+                workspace_path: None,
             };
             save_config(&new_config)?;
         }
