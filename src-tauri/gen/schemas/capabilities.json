@@ -1,1 +1,0 @@
-{"default":{"identifier":"default","description":"Capability for the main window and extractor windows","remote":{"urls":["https://**","http://**"]},"local":true,"windows":["main","extractor-*"],"permissions":["core:default","core:event:default","opener:default"]}}

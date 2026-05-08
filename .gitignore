@@ -145,3 +145,5 @@ config.json
 .worktrees/
 pencil/
 src-tauri/target
+src-tauri/gen/
+src-tauri/gen
