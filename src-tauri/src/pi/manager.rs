@@ -41,10 +41,10 @@ impl PiManager {
     /// Create an interactive pi PTY session
     pub fn create_session(
         &self,
-        app_handle: tauri::AppHandle,
+        _app_handle: tauri::AppHandle,
         session_id: String,
     ) -> AppResult<()> {
-        let mut process_cmd = self.runtime.build_pi_command()
+        let process_cmd = self.runtime.build_pi_command()
             .map_err(|e| AppError::Internal(format!("pi CLI 不可用: {}", e)))?;
 
         let pty_system = native_pty_system();
@@ -102,7 +102,7 @@ impl PiManager {
         session_id: String,
         prompt: &str,
     ) -> AppResult<()> {
-        let mut process_cmd = self.runtime.build_pi_command()
+        let process_cmd = self.runtime.build_pi_command()
             .map_err(|e| AppError::Internal(format!("pi CLI 不可用: {}", e)))?;
 
         let pty_system = native_pty_system();
@@ -133,7 +133,8 @@ impl PiManager {
         for arg in process_cmd.get_args() {
             cmd.arg(arg);
         }
-        cmd.arg("-p").arg(prompt);
+        cmd.arg("-p");
+        cmd.arg(prompt);
         Self::apply_config_env(&mut cmd, &config.claude_code);
 
         let child = pair.slave.spawn_command(cmd)
