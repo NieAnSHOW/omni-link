@@ -15,6 +15,7 @@ pub struct PiStatus {
 }
 
 /// Pi runtime: manages Node.js and pi CLI installation
+#[derive(Clone)]
 pub struct PiRuntime {
     /// Path to local Node.js directory (~/.omnilink/node/)
     node_dir: PathBuf,
