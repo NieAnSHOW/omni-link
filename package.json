@@ -11,6 +11,7 @@
     "dev:all": "tauri dev"
   },
   "dependencies": {
+    "@tauri-apps/plugin-dialog": "^2.7.1",
     "@types/markdown-it": "^14.1.2",
     "@vueuse/core": "^14.2.1",
     "class-variance-authority": "^0.7.1",

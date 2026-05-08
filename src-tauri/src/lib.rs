@@ -24,6 +24,7 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             tracing::info!("OmniLink application starting");
             tracing::info!("Version: {}", env!("CARGO_PKG_VERSION"));
@@ -86,6 +87,11 @@ pub fn run() {
             commands::pi_commands::update_session_status,
             commands::pi_commands::list_pi_skills,
             commands::pi_commands::deploy_pi_skills,
+            commands::workspace_commands::set_workspace,
+            commands::workspace_commands::get_workspace,
+            commands::workspace_commands::list_files,
+            commands::workspace_commands::read_file,
+            commands::workspace_commands::write_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
