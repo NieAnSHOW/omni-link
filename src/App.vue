@@ -11,9 +11,12 @@
     </div>
   </div>
   <template v-else>
-    <AppLayout>
-      <router-view />
-    </AppLayout>
+    <template v-if="workspaceStore.workspacePath">
+      <AppLayout>
+        <router-view />
+      </AppLayout>
+    </template>
+    <WorkspaceView v-else />
     <ScrollToTop />
     <Toaster />
   </template>
@@ -22,12 +25,16 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import AppLayout from './components/AppLayout.vue';
+import WorkspaceView from './views/WorkspaceView.vue';
 import ScrollToTop from './components/ScrollToTop.vue';
 import { Toaster } from '@/components/ui/toast';
 import { useTheme } from './composables/useTheme';
+import { useWorkspaceStore } from './stores/workspace';
 
 const { initTheme } = useTheme();
 initTheme();
+
+const workspaceStore = useWorkspaceStore();
 
 const SPLASH_DURATION = 1200;
 const FADE_DURATION = 300;
@@ -44,6 +51,9 @@ function minDelay(ms: number): Promise<void> {
 }
 
 onMounted(async () => {
+  // Initialize workspace during splash
+  await workspaceStore.initWorkspace();
+
   await minDelay(SPLASH_DURATION);
   // Trigger fade-out
   if (splashRef.value) {

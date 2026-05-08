@@ -5,7 +5,6 @@ const router = createRouter({
   routes: [
     { path: '/', redirect: '/notes' },
     { path: '/notes', name: 'notes', component: () => import('../views/NotesView.vue') },
-    { path: '/notes/:id', name: 'note-detail', component: () => import('../views/NotesView.vue'), props: true },
     { path: '/settings', name: 'settings', component: () => import('../views/SettingsView.vue') },
   ],
 });
