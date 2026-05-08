@@ -1,11 +1,27 @@
+use std::fs;
+use std::path::Path;
+
 use tauri::State;
 
 use crate::config::ConfigState;
 use crate::db::DbState;
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::models::{Note, NoteDetail};
 use crate::parser::pipeline;
 use crate::repositories::note_repo;
+
+/// Sanitize a string for use as a file name by replacing illegal characters with `_`.
+fn sanitize_filename(name: &str) -> String {
+    name.chars()
+        .map(|c| {
+            if "/\\:*?\"<>|".contains(c) {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect()
+}
 
 #[tauri::command]
 pub async fn create_note(state: State<'_, DbState>, title: String) -> AppResult<Note> {
@@ -54,20 +70,22 @@ pub async fn delete_note(state: State<'_, DbState>, id: i64) -> AppResult<()> {
 #[tauri::command]
 pub async fn create_note_from_link(
     app: tauri::AppHandle,
-    state: State<'_, DbState>,
     config_state: State<'_, ConfigState>,
     url: String,
-) -> AppResult<NoteDetail> {
+) -> AppResult<String> {
     let parse_output = pipeline::parse_url_to_markdown(&app, &config_state, &url).await?;
 
-    let conn = state.0.lock().unwrap();
-    let note = note_repo::create_note_with_content(
-        &conn,
-        &parse_output.title,
-        &parse_output.markdown,
-        &parse_output.url,
-    )?;
+    let workspace_path = {
+        let cfg = config_state.0.lock().unwrap();
+        cfg.workspace_path
+            .clone()
+            .ok_or_else(|| AppError::Config("No workspace path configured".into()))?
+    };
 
-    let content = note_repo::read_note_content(&conn, note.id)?;
-    Ok(NoteDetail { note, content })
+    let file_name = format!("{}.md", sanitize_filename(&parse_output.title));
+    let file_path = Path::new(&workspace_path).join(&file_name);
+
+    fs::write(&file_path, &parse_output.markdown)?;
+
+    Ok(file_path.to_str().unwrap_or(&file_name).to_string())
 }
