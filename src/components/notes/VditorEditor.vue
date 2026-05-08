@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import Vditor from 'vditor';
 import 'vditor/dist/index.css';
+import { ListTree, X } from 'lucide-vue-next';
 
 interface Props {
   modelValue: string;
@@ -18,8 +19,21 @@ const emit = defineEmits<{
 
 const wrapperRef = ref<HTMLDivElement>();
 const editorRef = ref<HTMLDivElement>();
+const outlineVisible = ref(false);
 let vditor: Vditor | null = null;
 let isInternalUpdate = false;
+
+function toggleOutline() {
+  outlineVisible.value = !outlineVisible.value;
+  if (!wrapperRef.value) return;
+  const outlineEl = wrapperRef.value.querySelector('.vditor-outline') as HTMLElement | null;
+  if (outlineEl) {
+    outlineEl.style.display = outlineVisible.value ? '' : 'none';
+    if (outlineVisible.value) {
+      vditor?.outline?.render?.();
+    }
+  }
+}
 
 onMounted(() => {
   if (!editorRef.value || !wrapperRef.value) return;
@@ -37,11 +51,18 @@ onMounted(() => {
       'more',
     ],
     toolbarConfig: { hide: false },
+    outline: { enable: true, position: 'right' },
     cache: { enable: false },
     input: (value: string) => {
       if (isInternalUpdate) return;
       emit('update:modelValue', value);
     },
+  });
+
+  // 默认隐藏大纲面板
+  requestAnimationFrame(() => {
+    const outlineEl = wrapperRef.value?.querySelector('.vditor-outline') as HTMLElement | null;
+    if (outlineEl) outlineEl.style.display = 'none';
   });
 });
 
@@ -66,7 +87,15 @@ watch(() => props.theme, (newTheme) => {
 </script>
 
 <template>
-  <div ref="wrapperRef" class="h-full min-h-0 overflow-hidden" style="height: calc(100vh - 200px)">
+  <div ref="wrapperRef" class="relative h-full min-h-0 overflow-hidden" style="height: calc(100vh - 220px)">
+    <button
+      class="absolute top-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded bg-transparent text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      :title="outlineVisible ? '隐藏大纲' : '显示大纲'"
+      @click="toggleOutline"
+    >
+      <X v-if="outlineVisible" :size="16" />
+      <ListTree v-else :size="16" />
+    </button>
     <div ref="editorRef" />
   </div>
 </template>
@@ -85,5 +114,25 @@ watch(() => props.theme, (newTheme) => {
 :deep(.vditor-ir) {
   min-height: 0 !important;
   overflow: auto;
+}
+
+:deep(.vditor-outline) {
+  border-left: 1px solid var(--border);
+  background: var(--background);
+  font-size: 13px;
+  overflow: auto;
+}
+
+:deep(.vditor-outline__title) {
+  display: none;
+}
+
+:deep(.vditor-outline a) {
+  color: var(--muted-foreground);
+  text-decoration: none;
+}
+
+:deep(.vditor-outline a:hover) {
+  color: var(--foreground);
 }
 </style>
