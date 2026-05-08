@@ -31,7 +31,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       const selected = await open({ directory: true, multiple: false });
       if (!selected) return;
 
-      const path = typeof selected === 'string' ? selected : selected;
+      const path = selected as string;
       await workspaceApi.setWorkspace(path);
       workspacePath.value = path;
       await loadFileTree();
@@ -73,15 +73,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   async function saveCurrentFile() {
     if (!currentFilePath.value) return;
-    loading.value = true;
-    error.value = null;
     try {
       await workspaceApi.writeFile(currentFilePath.value, currentContent.value);
     } catch (e) {
       error.value = e instanceof Error ? e.message : '保存文件失败';
-      throw e;
-    } finally {
-      loading.value = false;
+      console.error('Save failed:', e);
     }
   }
 

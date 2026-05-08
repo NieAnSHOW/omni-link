@@ -10,7 +10,7 @@
 </template>
 
 <script setup lang="ts">
-import { watch } from 'vue';
+import { watch, onUnmounted } from 'vue';
 import VditorEditor from './VditorEditor.vue';
 import { useTheme } from '../../composables/useTheme';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -26,5 +26,12 @@ watch(() => workspaceStore.currentContent, () => {
   saveTimer = window.setTimeout(() => {
     workspaceStore.saveCurrentFile();
   }, 2000);
+});
+
+onUnmounted(() => {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    workspaceStore.saveCurrentFile();
+  }
 });
 </script>
