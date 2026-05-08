@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { useClaude } from '@/composables/useClaude'
+import { usePi } from '@/composables/usePi'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
-const claude = useClaude()
+const pi = usePi()
 const saving = ref(false)
 const saved = ref(false)
-const cliStatus = ref<{ installed: boolean; version: string | null }>({ installed: false, version: null })
+const cliStatus = ref<{ nodeInstalled: boolean; piInstalled: boolean; nodeVersion: string | null; piVersion: string | null }>({
+  nodeInstalled: false,
+  piInstalled: false,
+  nodeVersion: null,
+  piVersion: null,
+})
 const installing = ref(false)
 
 const config = reactive({
@@ -20,20 +25,20 @@ const config = reactive({
 
 onMounted(async () => {
   try {
-    const status = await claude.checkInstalled()
+    const status = await pi.checkInstalled()
     cliStatus.value = status
   } catch (e) {
     console.error('Failed to check CLI status:', e)
   }
 
   try {
-    const cfg = await claude.getConfig()
+    const cfg = await pi.getConfig()
     config.provider = cfg.provider
     config.apiKey = cfg.api_key
     config.baseUrl = cfg.base_url
     config.model = cfg.model
   } catch (e) {
-    console.error('Failed to load Claude config:', e)
+    console.error('Failed to load config:', e)
   }
 })
 
@@ -47,8 +52,8 @@ function onProviderChange() {
 async function handleInstallCli() {
   installing.value = true
   try {
-    await claude.installCli()
-    const status = await claude.checkInstalled()
+    await pi.installPi()
+    const status = await pi.checkInstalled()
     cliStatus.value = status
   } catch (e: unknown) {
     console.error('Install failed:', e)
@@ -61,7 +66,7 @@ async function saveConfig() {
   saving.value = true
   saved.value = false
   try {
-    await claude.updateConfig({
+    await pi.updateConfig({
       provider: config.provider,
       apiKey: config.apiKey || undefined,
       baseUrl: config.baseUrl || undefined,
@@ -70,7 +75,7 @@ async function saveConfig() {
     saved.value = true
     setTimeout(() => { saved.value = false }, 2000)
   } catch (e) {
-    console.error('Failed to save Claude config:', e)
+    console.error('Failed to save config:', e)
   } finally {
     saving.value = false
   }
@@ -80,26 +85,31 @@ async function saveConfig() {
 <template>
   <Card>
     <CardHeader>
-      <CardTitle>Claude Code</CardTitle>
-      <CardDescription>内置 Claude Code 终端配置</CardDescription>
+      <CardTitle>Pi Agent</CardTitle>
+      <CardDescription>内置 Pi Agent 终端配置</CardDescription>
     </CardHeader>
     <CardContent class="flex flex-col gap-4">
       <!-- CLI Status -->
       <div class="flex flex-col gap-1.5">
         <label class="text-sm text-muted-foreground">CLI 状态</label>
         <div class="flex items-center gap-3">
-          <span v-if="cliStatus.installed" class="text-sm text-emerald-500">
-            已安装 {{ cliStatus.version }}
-          </span>
-          <span v-else class="text-sm text-muted-foreground">未安装</span>
-          <Button
-            v-if="!cliStatus.installed"
-            size="sm"
-            :disabled="installing"
-            @click="handleInstallCli"
-          >
-            {{ installing ? '安装中...' : '安装 Claude CLI' }}
-          </Button>
+          <template v-if="cliStatus.piInstalled">
+            <span class="text-sm text-emerald-500">
+              Node {{ cliStatus.nodeVersion }} / pi {{ cliStatus.piVersion }}
+            </span>
+          </template>
+          <template v-else>
+            <span class="text-sm text-muted-foreground">
+              {{ cliStatus.nodeInstalled ? 'Node.js 已安装，pi 未安装' : '未安装' }}
+            </span>
+            <Button
+              size="sm"
+              :disabled="installing"
+              @click="handleInstallCli"
+            >
+              {{ installing ? '安装中...' : '安装 Pi CLI' }}
+            </Button>
+          </template>
         </div>
       </div>
 
@@ -138,7 +148,7 @@ async function saveConfig() {
       <!-- Save -->
       <div class="flex items-center gap-3 pt-2">
         <Button :disabled="saving" @click="saveConfig">
-          {{ saving ? '保存中...' : '保存 Claude 配置' }}
+          {{ saving ? '保存中...' : '保存配置' }}
         </Button>
         <span v-if="saved" class="text-sm text-emerald-500">已保存</span>
       </div>

@@ -44,12 +44,12 @@ import type { Persona } from '@/types/persona';
 const route = useRoute();
 const notesStore = useNotesStore();
 
-const claudeTerminal = inject<{
+const agentTerminal = inject<{
   open: () => void;
   sendPrompt: (text: string) => Promise<void>;
   startPrintSession: (prompt: string) => Promise<void>;
   isReady: () => boolean;
-}>('claudeTerminal')!;
+}>('agentTerminal')!;
 
 const showPersonaDialog = ref(false);
 
@@ -70,7 +70,7 @@ async function handlePersonaConfirm(persona: Persona, _mode: 'smart' | 'manual')
   try {
     const notePath = `~/.omnilink/notes/${notesStore.currentNote.note.file_name}`;
     const prompt = `先用 Read 工具读取 ${notePath} 的内容，然后以 ${persona.skill_name} 的视角重写全文，最后用 Write 工具将重写后的内容覆盖写回 ${notePath}。不要输出任何额外解释，直接完成文件操作。`;
-    await claudeTerminal.startPrintSession(prompt);
+    await agentTerminal.startPrintSession(prompt);
   } catch (error) {
     console.error('启动人格重构失败:', error);
   }

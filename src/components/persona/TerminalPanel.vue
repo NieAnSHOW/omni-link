@@ -4,7 +4,7 @@ import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { usePersona } from '@/composables/usePersona';
-import { useClaude } from '@/composables/useClaude';
+import { usePi } from '@/composables/usePi';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { XIcon } from 'lucide-vue-next';
@@ -25,7 +25,7 @@ const emit = defineEmits<{
 }>();
 
 const { updateSessionStatus } = usePersona();
-const { resizeTerminal, closeSession } = useClaude();
+const { resizeTerminal, closeSession } = usePi();
 
 const terminalRef = ref<HTMLElement | null>(null);
 const status = ref<'running' | 'completed' | 'failed'>('running');
@@ -73,9 +73,9 @@ const handleResize = () => {
 };
 
 const setupEventListeners = async () => {
-  // 使用 session-specific 事件（新 Claude 系统）
+  // session-specific 事件
   unlistenOutput = await listen<string>(
-    `claude-pty-output-${props.sessionId}`,
+    `pi-pty-output-${props.sessionId}`,
     (event) => {
       if (terminal && event.payload) {
         terminal.write(event.payload);
@@ -84,7 +84,7 @@ const setupEventListeners = async () => {
   );
 
   unlistenStatus = await listen<{ sessionId: string; status: string }>(
-    'claude-session-status',
+    'pi-session-status',
     async (event) => {
       if (event.payload.sessionId === props.sessionId) {
         if (event.payload.status === 'exited') {
@@ -99,7 +99,7 @@ const setupEventListeners = async () => {
       }
     }
   );
-  // 不需要调用 startReading — start_claude_rewrite 命令已启动 output loop
+  // 不需要调用 startReading — start_persona_rewrite 命令已启动 output loop
 };
 
 const handleClose = async () => {

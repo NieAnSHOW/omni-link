@@ -58,7 +58,7 @@
           <span class="flex-1 text-sm font-medium">{{ currentTitle }}</span>
           <div class="flex items-center gap-2">
             <slot name="topbar-actions" />
-            <Button variant="ghost" size="icon" @click="claudePanelOpen = !claudePanelOpen" title="Claude Code">
+            <Button variant="ghost" size="icon" @click="claudePanelOpen = !claudePanelOpen" title="Pi Agent">
               <TerminalSquareIcon class="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="icon" @click="toggleTheme">
@@ -71,7 +71,7 @@
         </div>
       </main>
 
-      <!-- BottomPanel: Claude Code 交互终端 -->
+      <!-- BottomPanel: Pi Agent 交互终端 -->
       <BottomPanel ref="bottomPanelRef" v-model="claudePanelOpen" />
     </div>
 
@@ -106,7 +106,7 @@ const showCreateFromLink = ref(false);
 const claudePanelOpen = ref(false);
 const bottomPanelRef = ref<InstanceType<typeof BottomPanel> | null>(null);
 
-provide('claudeTerminal', {
+provide('agentTerminal', {
   open: () => {
     claudePanelOpen.value = true;
     nextTick(() => bottomPanelRef.value?.open());

@@ -101,7 +101,7 @@ defineExpose({ open, sendPrompt, startPrintSession, sessionId })
       class="flex items-center justify-between border-t border-border px-4 py-1.5 text-xs text-muted-foreground bg-background cursor-pointer hover:bg-accent/30"
       @click="isOpen = true"
     >
-      <span>Claude Code 就绪</span>
+      <span>Pi Agent 就绪</span>
       <span>点击展开</span>
     </div>
 
@@ -113,7 +113,7 @@ defineExpose({ open, sendPrompt, startPrintSession, sessionId })
     >
       <!-- Panel header -->
       <div class="flex items-center justify-between border-b border-border px-3 py-1">
-        <span class="text-xs font-medium">Claude Code</span>
+        <span class="text-xs font-medium">Pi Agent</span>
         <button
           class="text-xs text-muted-foreground hover:text-foreground px-1"
           @click="isOpen = false"
