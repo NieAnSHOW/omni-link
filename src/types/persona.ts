@@ -39,22 +39,23 @@ export interface StartRewriteParams {
   mode: 'smart' | 'manual';
 }
 
-// === Claude Code 类型 ===
+// === Agent 类型 ===
 
-export interface ClaudeConfig {
+export interface AgentConfig {
   provider: string;
   api_key: string;
   base_url: string;
   model: string;
 }
 
-export interface ClaudeCliStatus {
-  installed: boolean;
-  version: string | null;
-  path?: string;
+export interface PiCliStatus {
+  nodeInstalled: boolean;
+  piInstalled: boolean;
+  nodeVersion: string | null;
+  piVersion: string | null;
 }
 
-export interface ClaudeSkillInfo {
+export interface AgentSkillInfo {
   name: string;
   builtin: boolean;
 }
