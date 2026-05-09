@@ -17,7 +17,7 @@
 
       <!-- File tree -->
       <div class="flex-1 overflow-y-auto px-2">
-        <div v-if="workspaceStore.loading" class="px-3 py-8 text-center text-sm text-muted-foreground">加载中...</div>
+        <div v-if="workspaceStore.loadingTree" class="px-3 py-8 text-center text-sm text-muted-foreground">加载中...</div>
         <div v-else-if="workspaceStore.fileTree.length === 0" class="px-3 py-8 text-center text-sm text-muted-foreground">
           工作区为空
         </div>

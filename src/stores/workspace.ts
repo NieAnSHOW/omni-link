@@ -9,7 +9,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const fileTree = ref<FileEntry[]>([]);
   const currentFilePath = ref<string | null>(null);
   const currentContent = ref<string>('');
-  const loading = ref(false);
+  const loadingTree = ref(false);
+  const loadingFile = ref(false);
   const error = ref<string | null>(null);
 
   async function initWorkspace() {
@@ -25,7 +26,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function selectWorkspace() {
-    loading.value = true;
+    loadingTree.value = true;
     error.value = null;
     try {
       const selected = await open({ directory: true, multiple: false });
@@ -39,13 +40,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       error.value = e instanceof Error ? e.message : '选择工作区失败';
       throw e;
     } finally {
-      loading.value = false;
+      loadingTree.value = false;
     }
   }
 
   async function loadFileTree() {
     if (!workspacePath.value) return;
-    loading.value = true;
+    loadingTree.value = true;
     error.value = null;
     try {
       fileTree.value = await workspaceApi.listFiles(workspacePath.value);
@@ -53,12 +54,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       error.value = e instanceof Error ? e.message : '加载文件树失败';
       throw e;
     } finally {
-      loading.value = false;
+      loadingTree.value = false;
     }
   }
 
   async function openFile(path: string) {
-    loading.value = true;
+    loadingFile.value = true;
     error.value = null;
     try {
       currentContent.value = await workspaceApi.readFile(path);
@@ -67,7 +68,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       error.value = e instanceof Error ? e.message : '打开文件失败';
       throw e;
     } finally {
-      loading.value = false;
+      loadingFile.value = false;
     }
   }
 
@@ -78,6 +79,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     } catch (e) {
       error.value = e instanceof Error ? e.message : '保存文件失败';
       console.error('Save failed:', e);
+    }
+  }
+
+  async function reloadCurrentFile() {
+    if (!currentFilePath.value) return;
+    try {
+      currentContent.value = await workspaceApi.readFile(currentFilePath.value);
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : '重新加载文件失败';
+      console.error('Reload failed:', e);
     }
   }
 
@@ -93,13 +104,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     fileTree,
     currentFilePath,
     currentContent,
-    loading,
+    loadingTree,
+    loadingFile,
     error,
     initWorkspace,
     selectWorkspace,
     loadFileTree,
     openFile,
     saveCurrentFile,
+    reloadCurrentFile,
     closeWorkspace,
   };
 });

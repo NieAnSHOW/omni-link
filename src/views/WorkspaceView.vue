@@ -8,11 +8,11 @@
       </div>
       <Button
         size="lg"
-        :disabled="workspaceStore.loading"
+        :disabled="workspaceStore.loadingTree"
         @click="workspaceStore.selectWorkspace()"
       >
         <FolderOpen class="h-4 w-4" />
-        {{ workspaceStore.loading ? '选择中...' : '打开文件夹' }}
+        {{ workspaceStore.loadingTree ? '选择中...' : '打开文件夹' }}
       </Button>
       <p v-if="workspaceStore.error" class="text-sm text-destructive">
         {{ workspaceStore.error }}
