@@ -132,8 +132,11 @@ onMounted(() => {
   workspaceStore.loadFileTree();
 });
 
-function handleOpenFile(path: string) {
-  workspaceStore.openFile(path);
+async function handleOpenFile(path: string) {
+  await workspaceStore.openFile(path);
+  if (router.currentRoute.value.path !== '/notes') {
+    router.push('/notes');
+  }
 }
 
 function goToSettings() {
